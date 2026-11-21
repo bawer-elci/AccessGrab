@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">AccessGrab</string>
+    <string name="app_subtitle">Erişilebilir Sosyal Medya İndiricisi</string>
+    
+    <string name="url_input_hint">Sosyal medya bağlantısını girin veya yapıştırın</string>
+    <string name="url_input_desc">Video veya ses bağlantısı giriş alanı</string>
+    <string name="btn_paste">Panodan Yapıştır</string>
+    <string name="btn_paste_desc">Panodaki bağlantıyı giriş alanına yapıştır</string>
+    <string name="btn_clear">Temizle</string>
+    <string name="btn_clear_desc">Giriş alanındaki metni temizle</string>
+    
+    <string name="btn_fetch">Medyayı İncele</string>
+    <string name="btn_fetch_desc">Bağlantıdaki videonun detaylarını ve formatlarını getir</string>
+    
+    <string name="media_info_heading">Medya Bilgileri</string>
+    <string name="label_platform">Platform</string>
+    <string name="label_title">Başlık</string>
+    <string name="label_author">Yükleyen</string>
+    <string name="label_duration">Süre</string>
+    
+    <string name="download_options_heading">İndirme Seçenekleri</string>
+    <string name="btn_download_video">Videoyu İndir (MP4)</string>
+    <string name="btn_download_video_desc">Videonun en yüksek kaliteli MP4 formatını indir</string>
+    
+    <string name="btn_download_audio">Sesi İndir (MP3)</string>
+    <string name="btn_download_audio_desc">Videonun sesini yüksek kaliteli MP3 formatında indir</string>
+    
+    <string name="status_fetching">Medya bilgileri alınıyor, lütfen bekleyin…</string>
+    <string name="status_downloading">İndirme başlatıldı. Bildirim çubuğundan takip edebilirsiniz.</string>
+    <string name="status_clipboard_detected">Panoda bağlantı bulundu: %1$s</string>
+    <string name="btn_use_clipboard">Bu Bağlantıyı Kullan</string>
+    
+    <string name="err_invalid_url">Lütfen geçerli bir internet bağlantısı girin.</string>
+    <string name="err_empty_url">Bağlantı alanı boş olamaz.</string>
+    <string name="err_network">Sunucuya bağlanırken bir sorun oluştu. İnternet bağlantınızı kontrol edin.</string>
+</resources>
