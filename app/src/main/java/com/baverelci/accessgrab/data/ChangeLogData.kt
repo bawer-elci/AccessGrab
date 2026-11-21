@@ -10,15 +10,24 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.4.0",
+            version = "v1.4.1",
             date = "22 Kasım 2026",
             isLatest = true,
             highlights = listOf(
+                "Uygulama İçi Sürüm Notları (ChangeLog): Ayarlar ve Hakkında ekranlarından geçmiş tüm sürüm yeniliklerine erişebilme.",
+                "Video Çözünürlük Seçenekleri: 1080p (FHD), 720p (HD), 480p (SD) ve 360p arasında serbest seçim.",
+                "Ses Bit Hızı Seçenekleri: 320 kbps (Yüksek Kalite), 192 kbps (Standart) ve 128 kbps (Tasarruf) seçenekleri.",
+                "Gelişmiş TalkBack Desteği: Seçilen format ve kalite için dinamik sesli geri bildirimler.",
+                "İndirme motoru hız, kararlılık ve bellek optimizasyonları."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.4.0",
+            date = "22 Kasım 2026",
+            highlights = listOf(
                 "Video Çözünürlük Seçenekleri: 1080p (FHD), 720p (HD), 480p (SD) ve 360p arasında serbestçe seçim yapabilme.",
                 "Ses Bit Hızı Seçenekleri: 320 kbps (Yüksek Kalite), 192 kbps (Standart) ve 128 kbps (Tasarruf) seçenekleri.",
-                "Uygulama İçi Sürüm Notları (ChangeLog): Her sürümdeki yenilik ve değişiklikleri doğrudan uygulama içinden takip edebilme.",
-                "Gelişmiş TalkBack Desteği: Seçilen format ve kalite için dinamik ve anlaşılır sesli geri bildirimler.",
-                "İndirme motoru hız, kararlılık ve bellek optimizasyonları."
+                "Gelişmiş TalkBack Desteği: Seçilen format ve kalite için dinamik ve anlaşılır sesli geri bildirimler."
             )
         ),
         ReleaseLog(
