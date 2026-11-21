@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
 import com.baverelci.accessgrab.downloader.ApkInstallHelper
 import com.baverelci.accessgrab.ui.components.AccessibleButton
+import com.baverelci.accessgrab.ui.components.ChangeLogDialog
 import com.baverelci.accessgrab.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -83,6 +85,12 @@ fun SettingsScreen(
 
     var isInstallingUpdate by remember { mutableStateOf(false) }
     var installProgress by remember { mutableStateOf(0) }
+    var showChangeLog by remember { mutableStateOf(false) }
+
+    // Sürüm Notları (ChangeLog) Diyaloğu
+    if (showChangeLog) {
+        ChangeLogDialog(onDismiss = { showChangeLog = false })
+    }
 
     LaunchedEffect(updateStatusMessage) {
         updateStatusMessage?.let { msg ->
@@ -381,6 +389,17 @@ fun SettingsScreen(
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                     enabled = !isCheckingUpdate,
                     onClick = { viewModel.checkForUpdates(isManual = true) }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                AccessibleButton(
+                    text = "Sürüm Notları (ChangeLog)",
+                    contentDesc = "Tüm sürümlerdeki yenilikleri ve değişiklik günlüğünü görüntüle",
+                    icon = Icons.Default.Info,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    onClick = { showChangeLog = true }
                 )
             }
         }
