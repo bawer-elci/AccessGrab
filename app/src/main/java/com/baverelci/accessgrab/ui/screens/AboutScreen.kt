@@ -72,7 +72,7 @@ fun AboutScreen(
                     modifier = Modifier.semantics { heading() }
                 )
                 Text(
-                    text = "Sürüm 1.3.0 (Erişilebilir Yapı)",
+                    text = "Sürüm 1.4.0 (Erişilebilir Yapı)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )

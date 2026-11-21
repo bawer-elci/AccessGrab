@@ -4,6 +4,8 @@ import android.app.DownloadManager
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -45,6 +47,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,10 +60,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
 import com.baverelci.accessgrab.ui.components.AccessibleButton
@@ -86,6 +93,8 @@ fun MainScreen(
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
 
     val uiState by viewModel.uiState.collectAsState()
+    val selectedFormat by viewModel.selectedFormat.collectAsState()
+    val selectedQuality by viewModel.selectedQuality.collectAsState()
 
     // TalkBack canlı durum bildirimleri
     LaunchedEffect(uiState) {
@@ -204,6 +213,8 @@ fun DownloaderContent(
     val context = LocalContext.current
     val urlInput by viewModel.urlInput.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val selectedFormat by viewModel.selectedFormat.collectAsState()
+    val selectedQuality by viewModel.selectedQuality.collectAsState()
     val clipboardUrl by viewModel.clipboardDetectedUrl.collectAsState()
 
     Column(
@@ -428,42 +439,177 @@ fun DownloaderContent(
             MediaInfoCard(media = media)
 
             Text(
-                text = "İndirme Formatını Seçin",
+                text = "Format ve Kalite Seçimi",
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.semantics { heading() }
             )
 
-            // MP4 Video Butonu
-            AccessibleButton(
-                text = "Videoyu İndir (MP4)",
-                contentDesc = "Videonun MP4 formatını en yüksek kalitede indir",
-                icon = Icons.Default.VideoLibrary,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                onClick = {
-                    viewModel.startTrackedDownload(
-                        context = context,
-                        mediaUrl = media.url,
-                        format = "mp4",
-                        title = media.title
-                    )
-                }
-            )
+            // Format Seçim Düğmeleri (Video vs Ses)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val isVideoSelected = selectedFormat == "mp4"
+                AccessibleButton(
+                    text = if (isVideoSelected) "✓ Video (MP4)" else "Video (MP4)",
+                    contentDesc = "Video formatı ${if (isVideoSelected) "seçili" else "seçmek için dokunun"}",
+                    icon = Icons.Default.VideoLibrary,
+                    containerColor = if (isVideoSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (isVideoSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                    onClick = { viewModel.selectFormat("mp4") }
+                )
 
-            // MP3 Ses Butonu
+                val isAudioSelected = selectedFormat == "mp3"
+                AccessibleButton(
+                    text = if (isAudioSelected) "✓ Ses (MP3)" else "Ses (MP3)",
+                    contentDesc = "Ses formatı ${if (isAudioSelected) "seçili" else "seçmek için dokunun"}",
+                    icon = Icons.Default.Audiotrack,
+                    containerColor = if (isAudioSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (isAudioSelected) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                    onClick = { viewModel.selectFormat("mp3") }
+                )
+            }
+
+            // Kalite Seçenekleri Kartı
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    val qualityTitle = if (selectedFormat == "mp4") "Çözünürlük Seçeneği" else "Ses Kalitesi (Bit Hızı)"
+                    Text(
+                        text = qualityTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { heading() }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (selectedFormat == "mp4") {
+                        val videoQualities = listOf(
+                            Triple("1080", "1080p FHD", "En yüksek netlik ve çözünürlük"),
+                            Triple("720", "720p HD", "Standart yüksek kalite (Önerilen)"),
+                            Triple("480", "480p SD", "Standart kalite, hızlı indirme"),
+                            Triple("360", "360p", "Düşük veri kullanımı ve küçük dosya boyutu")
+                        )
+
+                        videoQualities.forEach { (qKey, qLabel, qDesc) ->
+                            val isSelected = selectedQuality == qKey
+                            Card(
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                                ),
+                                border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable { viewModel.selectQuality(qKey) }
+                                    .semantics {
+                                        this.role = Role.RadioButton
+                                        this.selected = isSelected
+                                        this.contentDescription = "$qLabel, $qDesc. ${if (isSelected) "Seçili" else "Seçmek için çift dokunun"}"
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = { viewModel.selectQuality(qKey) }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = qLabel,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = qDesc,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        val audioQualities = listOf(
+                            Triple("320", "320 kbps (Yüksek Kalite)", "Stüdyo kalitesinde kristal netliğinde ses"),
+                            Triple("192", "192 kbps (Standart)", "Müzik ve videolar için en dengeli ses (Önerilen)"),
+                            Triple("128", "128 kbps (Tasarruf)", "Podcast ve konuşmalar için ideal, düşük boyut")
+                        )
+
+                        audioQualities.forEach { (qKey, qLabel, qDesc) ->
+                            val isSelected = selectedQuality == qKey
+                            Card(
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+                                ),
+                                border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.secondary) else null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clickable { viewModel.selectQuality(qKey) }
+                                    .semantics {
+                                        this.role = Role.RadioButton
+                                        this.selected = isSelected
+                                        this.contentDescription = "$qLabel, $qDesc. ${if (isSelected) "Seçili" else "Seçmek için çift dokunun"}"
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isSelected,
+                                        onClick = { viewModel.selectQuality(qKey) }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
+                                        Text(
+                                            text = qLabel,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = qDesc,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Ana İndirme Butonu
+            val isVid = selectedFormat == "mp4"
+            val downloadBtnText = if (isVid) "$selectedQuality" + "p Videoyu İndir (MP4)" else "$selectedQuality kbps Sesi İndir (MP3)"
             AccessibleButton(
-                text = "Sesi İndir (MP3)",
-                contentDesc = "Videonun sesini yüksek kaliteli MP3 olarak indir",
-                icon = Icons.Default.Audiotrack,
-                containerColor = MaterialTheme.colorScheme.secondary,
-                contentColor = MaterialTheme.colorScheme.onSecondary,
+                text = downloadBtnText,
+                contentDesc = "$downloadBtnText, indirme işlemini başlat",
+                icon = Icons.Default.Download,
+                containerColor = if (isVid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                contentColor = if (isVid) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary,
                 onClick = {
                     viewModel.startTrackedDownload(
                         context = context,
                         mediaUrl = media.url,
-                        format = "mp3",
-                        title = media.title
+                        format = selectedFormat,
+                        title = media.title,
+                        quality = selectedQuality
                     )
                 }
             )

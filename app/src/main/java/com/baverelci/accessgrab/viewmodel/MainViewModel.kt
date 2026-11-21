@@ -78,6 +78,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _clipboardDetectedUrl = MutableStateFlow<String?>(null)
     val clipboardDetectedUrl: StateFlow<String?> = _clipboardDetectedUrl.asStateFlow()
 
+    // Format ve Kalite Seçimleri (v1.4.0)
+    private val _selectedFormat = MutableStateFlow("mp4")
+    val selectedFormat: StateFlow<String> = _selectedFormat.asStateFlow()
+
+    private val _selectedQuality = MutableStateFlow("720")
+    val selectedQuality: StateFlow<String> = _selectedQuality.asStateFlow()
+
+    fun selectFormat(format: String) {
+        _selectedFormat.value = format
+        if (format.lowercase() == "mp3") {
+            _selectedQuality.value = "192"
+        } else {
+            _selectedQuality.value = "720"
+        }
+    }
+
+    fun selectQuality(quality: String) {
+        _selectedQuality.value = quality
+    }
+
     // Güncelleme Durumları
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
@@ -188,11 +208,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun startTrackedDownload(context: Context, mediaUrl: String, format: String, title: String) {
-        val downloadId = DownloadHelper.startDownload(context, mediaUrl, format, title)
+    fun startTrackedDownload(
+        context: Context,
+        mediaUrl: String,
+        format: String,
+        title: String,
+        quality: String? = null
+    ) {
+        val downloadId = DownloadHelper.startDownload(context, mediaUrl, format, title, quality)
+        val formatLabel = if (!quality.isNullOrBlank()) "${format.uppercase()} ($quality)" else format.uppercase()
         _uiState.value = UiState.Downloading(
             title = title,
-            format = format.uppercase(),
+            format = formatLabel,
             progress = 0,
             downloadedBytes = 0L,
             totalBytes = 0L,

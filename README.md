@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Mimari-MVVM-success?style=for-the-badge" alt="MVVM" />
   <img src="https://img.shields.io/badge/TalkBack-%25100%20Eri%C5%9Fibillik-00C853?style=for-the-badge" alt="TalkBack" />
   <img src="https://img.shields.io/badge/Lisans-GPLv3-blue?style=for-the-badge" alt="Lisans GPLv3" />
-  <img src="https://img.shields.io/badge/S%C3%BCr%C3%BCm-v1.3.0-orange?style=for-the-badge" alt="Version" />
+  <img src="https://img.shields.io/badge/S%C3%BCr%C3%BCm-v1.4.0-orange?style=for-the-badge" alt="Version" />
 </p>
 
 ---
@@ -87,7 +87,7 @@ Projeyi kendi bilgisayarınızda derlemek için:
 
 Uygulamayı doğrudan cihazınıza kurup denemek için:
 
-👉 **[AccessGrab v1.3.0 APK İndir](https://github.com/bawer-elci/AccessGrab/releases/download/v1.3.0/AccessGrab.apk)**
+👉 **[AccessGrab v1.4.0 APK İndir](https://github.com/bawer-elci/AccessGrab/releases/download/v1.4.0/AccessGrab.apk)**
 
 ---
 

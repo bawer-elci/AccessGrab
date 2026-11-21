@@ -12,9 +12,10 @@ object DownloadHelper {
         context: Context,
         mediaUrl: String,
         format: String,
-        title: String
+        title: String,
+        quality: String? = null
     ): Long {
-        val downloadUrl = AccessGrabApi.buildDownloadUrl(mediaUrl, format)
+        val downloadUrl = AccessGrabApi.buildDownloadUrl(mediaUrl, format, quality)
         val ext = if (format.lowercase() == "mp3") "mp3" else "mp4"
         val mimeType = if (format.lowercase() == "mp3") "audio/mpeg" else "video/mp4"
 

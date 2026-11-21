@@ -51,8 +51,9 @@ object AccessGrabApi {
         retrofit.create(AccessGrabService::class.java)
     }
 
-    fun buildDownloadUrl(mediaUrl: String, format: String): String {
+    fun buildDownloadUrl(mediaUrl: String, format: String, quality: String? = null): String {
         val encodedUrl = java.net.URLEncoder.encode(mediaUrl, "UTF-8")
-        return "${BASE_URL}api/download?url=$encodedUrl&format=$format&key=$API_KEY"
+        val qualityParam = if (!quality.isNullOrBlank()) "&quality=$quality" else ""
+        return "${BASE_URL}api/download?url=$encodedUrl&format=$format$qualityParam&key=$API_KEY"
     }
 }
