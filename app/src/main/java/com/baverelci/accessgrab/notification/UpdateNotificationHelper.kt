@@ -39,7 +39,7 @@ object UpdateNotificationHelper {
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("OPEN_TAB", 1) // Ayarlar sekmesini aç
+            putExtra("OPEN_TAB", 2) // Ayarlar sekmesini aç
         }
 
         val pendingIntent = PendingIntent.getActivity(

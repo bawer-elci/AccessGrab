@@ -225,78 +225,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         quality: String? = null
     ) {
         lastDownloadParams = LastDownloadParams(mediaUrl, format, title, quality)
-        val downloadId = DownloadHelper.startDownload(context, mediaUrl, format, title, quality)
         val formatLabel = if (!quality.isNullOrBlank()) "${format.uppercase()} ($quality)" else format.uppercase()
+
         _uiState.value = UiState.Downloading(
             title = title,
             format = formatLabel,
             progress = 0,
             downloadedBytes = 0L,
             totalBytes = 0L,
-            downloadId = downloadId
+            downloadId = 0L
         )
 
-        // Arka planda DownloadManager ilerlemesini anlık sorgula
-        viewModelScope.launch(Dispatchers.IO) {
-            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager ?: return@launch
-            var isRunning = true
+        val appContext = getApplication<Application>().applicationContext
 
-            while (isRunning) {
-                try {
-                    val query = DownloadManager.Query().setFilterById(downloadId)
-                    val cursor = downloadManager.query(query)
-                    if (cursor != null && cursor.moveToFirst()) {
-                        val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                        val downloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
-                        val totalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+        viewModelScope.launch {
+            val result = DownloadHelper.downloadMediaDirect(
+                context = appContext,
+                mediaUrl = mediaUrl,
+                format = format,
+                title = title,
+                quality = quality,
+                onProgress = { progress, downloaded, total ->
+                    _uiState.value = UiState.Downloading(
+                        title = title,
+                        format = formatLabel,
+                        progress = progress,
+                        downloadedBytes = downloaded,
+                        totalBytes = total,
+                        downloadId = 0L
+                    )
+                }
+            )
 
-                        val status = if (statusIndex >= 0) cursor.getInt(statusIndex) else -1
-                        val downloaded = if (downloadedIndex >= 0) cursor.getLong(downloadedIndex) else 0L
-                        val total = if (totalIndex >= 0) cursor.getLong(totalIndex) else 0L
-                        cursor.close()
-
-                        when (status) {
-                            DownloadManager.STATUS_SUCCESSFUL -> {
-                                isRunning = false
-                                withContext(Dispatchers.Main) {
-                                    _uiState.value = UiState.DownloadCompleted(
-                                        title = title,
-                                        format = format.uppercase()
-                                    )
-                                }
-                            }
-                            DownloadManager.STATUS_FAILED -> {
-                                isRunning = false
-                                withContext(Dispatchers.Main) {
-                                    _uiState.value = UiState.Error(
-                                        message = "İndirme işlemi tamamlanamadı. Bağlantınızı kontrol edip yeniden deneyebilirsiniz.",
-                                        canRetry = true
-                                    )
-                                }
-                            }
-                            else -> {
-                                val calcProgress = if (total > 0L) {
-                                    ((downloaded * 100) / total).toInt().coerceIn(0, 100)
-                                } else 0
-
-                                withContext(Dispatchers.Main) {
-                                    _uiState.value = UiState.Downloading(
-                                        title = title,
-                                        format = format.uppercase(),
-                                        progress = calcProgress,
-                                        downloadedBytes = downloaded,
-                                        totalBytes = total,
-                                        downloadId = downloadId
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        cursor?.close()
-                    }
-                } catch (_: Exception) {}
-
-                delay(300)
+            if (result.isSuccess) {
+                _uiState.value = UiState.DownloadCompleted(
+                    title = title,
+                    format = formatLabel
+                )
+            } else {
+                val err = result.exceptionOrNull()?.localizedMessage
+                    ?: "İndirme işlemi tamamlanamadı. Bağlantınızı kontrol edip yeniden deneyebilirsiniz."
+                _uiState.value = UiState.Error(
+                    message = err,
+                    canRetry = true
+                )
             }
         }
     }

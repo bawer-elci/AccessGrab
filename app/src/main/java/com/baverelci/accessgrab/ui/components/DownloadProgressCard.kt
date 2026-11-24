@@ -44,6 +44,13 @@ fun DownloadProgressCard(
     totalBytes: Long,
     modifier: Modifier = Modifier
 ) {
+    val isPreparing = totalBytes <= 0L && downloadedBytes <= 0L
+    val statusDesc = if (isPreparing) {
+        "$title sunucuda hazırlanıyor, lütfen bekleyin."
+    } else {
+        "$title indiriliyor. İlerleme: Yüzde $progress"
+    }
+
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -51,7 +58,7 @@ fun DownloadProgressCard(
             .fillMaxWidth()
             .semantics {
                 this.liveRegion = LiveRegionMode.Polite
-                this.contentDescription = "$title indiriliyor. İlerleme: Yüzde $progress"
+                this.contentDescription = statusDesc
             }
     ) {
         Column(
@@ -74,16 +81,18 @@ fun DownloadProgressCard(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "İndiriliyor ($format)",
+                        text = if (isPreparing) "Sunucuda Hazırlanıyor ($format)…" else "İndiriliyor ($format)",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-                Text(
-                    text = "%$progress",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                if (!isPreparing) {
+                    Text(
+                        text = "%$progress",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             Text(

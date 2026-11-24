@@ -45,21 +45,41 @@ object MediaFileManager {
     fun getDownloadedFiles(context: Context? = null): List<DownloadedMediaFile> {
         val collectedFiles = linkedMapOf<String, File>()
 
-        // 1. Doğrudan Download/AccessGrab klasöründeki medya dosyalarını tara
-        val dir = getAccessGrabDirectory()
-        if (dir.exists() && dir.isDirectory) {
-            dir.listFiles { f ->
-                f.isFile && f.length() > 0L && (
-                    f.name.endsWith(".mp4", ignoreCase = true) ||
-                    f.name.endsWith(".mp3", ignoreCase = true)
-                )
-            }?.forEach { file ->
-                collectedFiles[file.absolutePath] = file
+        fun addFileIfNotDuplicate(file: File) {
+            if (!file.exists() || !file.isFile || file.length() <= 0L) return
+            val lowerName = file.name.lowercase()
+            if (!lowerName.endsWith(".mp4") && !lowerName.endsWith(".mp3")) return
+            val cleanKey = "${cleanDisplayName(file.nameWithoutExtension).lowercase()}.${file.extension.lowercase()}"
+            if (!collectedFiles.containsKey(cleanKey)) {
+                collectedFiles[cleanKey] = file
             }
         }
 
-        // 2. Sistem DownloadManager kayıtlarından tamamlanan indirmeleri de doğrula (Scoped Storage güvencesi)
+        // 1. Genel Download/AccessGrab klasöründeki medya dosyalarını tara
+        val publicDir = getAccessGrabDirectory()
+        if (publicDir.exists() && publicDir.isDirectory) {
+            publicDir.listFiles()?.forEach { addFileIfNotDuplicate(it) }
+        }
+
+        // 2. Uygulama özel medya dizinlerini tara (Android 7 - 16 %100 garantili dizin)
         if (context != null) {
+            try {
+                context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { extBase ->
+                    val appExtDir = File(extBase, "AccessGrab")
+                    if (appExtDir.exists() && appExtDir.isDirectory) {
+                        appExtDir.listFiles()?.forEach { addFileIfNotDuplicate(it) }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            try {
+                val appIntDir = File(context.filesDir, "AccessGrab")
+                if (appIntDir.exists() && appIntDir.isDirectory) {
+                    appIntDir.listFiles()?.forEach { addFileIfNotDuplicate(it) }
+                }
+            } catch (_: Exception) {}
+
+            // 3. Sistem DownloadManager kayıtlarından eski indirmeleri de doğrula
             try {
                 val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
                 if (dm != null) {
@@ -72,14 +92,7 @@ object MediaFileManager {
                                 val uri = Uri.parse(localUriStr)
                                 if (uri.scheme == "file") {
                                     val path = uri.path ?: continue
-                                    val f = File(path)
-                                    if (f.exists() && f.isFile && f.length() > 0L && (
-                                            f.name.endsWith(".mp4", ignoreCase = true) ||
-                                            f.name.endsWith(".mp3", ignoreCase = true)
-                                        )
-                                    ) {
-                                        collectedFiles[f.absolutePath] = f
-                                    }
+                                    addFileIfNotDuplicate(File(path))
                                 }
                             }
                         }
@@ -175,11 +188,37 @@ object MediaFileManager {
 
     fun deleteMediaFile(file: File, context: Context? = null): Boolean {
         var deleted = false
+        val targetCleanKey = "${cleanDisplayName(file.nameWithoutExtension).lowercase()}.${file.extension.lowercase()}"
+
         try {
             if (file.exists() && file.delete()) {
                 deleted = true
             }
         } catch (_: Exception) {}
+
+        // Hem genel Download/AccessGrab hem de uygulama içi dizindeki eşleşen kopyaları temizle
+        val candidateDirs = mutableListOf(getAccessGrabDirectory())
+        if (context != null) {
+            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let {
+                candidateDirs.add(File(it, "AccessGrab"))
+            }
+            candidateDirs.add(File(context.filesDir, "AccessGrab"))
+        }
+
+        for (dir in candidateDirs) {
+            try {
+                if (dir.exists() && dir.isDirectory) {
+                    dir.listFiles()?.forEach { candidate ->
+                        val key = "${cleanDisplayName(candidate.nameWithoutExtension).lowercase()}.${candidate.extension.lowercase()}"
+                        if (candidate.name == file.name || key == targetCleanKey) {
+                            if (candidate.delete()) {
+                                deleted = true
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
 
         if (context != null) {
             try {
@@ -193,7 +232,9 @@ object MediaFileManager {
                             if (idIdx >= 0 && localUriIdx >= 0) {
                                 val localUriStr = cursor.getString(localUriIdx) ?: continue
                                 val path = Uri.parse(localUriStr).path ?: continue
-                                if (path == file.absolutePath || File(path).name == file.name) {
+                                val f = File(path)
+                                val key = "${cleanDisplayName(f.nameWithoutExtension).lowercase()}.${f.extension.lowercase()}"
+                                if (path == file.absolutePath || f.name == file.name || key == targetCleanKey) {
                                     val id = cursor.getLong(idIdx)
                                     if (dm.remove(id) > 0) {
                                         deleted = true

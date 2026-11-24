@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.5.4",
+            version = "v1.6.0",
             date = "24 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Yeni Doğrudan İndirme Motoru (Redmi / MIUI & HyperOS Tam Uyumu): Sistem DownloadManager kısıtlamalarına ve 20 sn zaman aşımına (HTTP 499) takılmayan, uygulama içi yüksek hızlı doğrudan akış (OkHttp Streaming) motoruna geçildi.",
+                "Android 7.0 – Android 16 (API 24 – 35+) Genişletilmiş Cihaz Desteği: Eski ve yeni tüm Android sürümlerinde çift katmanlı depolama (Uygulama Dizini + Genel İndirilenler / MediaStore) ve otomatik Galeri/Müzik tarayıcı entegrasyonu.",
+                "Aşama Çubuğu Takılma Düzeltmesi: Sunucu hazırlık aşaması ('Sunucuda Hazırlanıyor…') ve anlık indirme yüzdesi ayrıştırıldı; bağlantı hatalarında sonsuz beklemek yerine anında 'Yeniden Dene' kartına geçiş sağlandı."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.5.4",
+            date = "24 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "İndir Sekmesi TalkBack Eylemler (Custom Actions) Entegrasyonu: Medya bilgisi kartı üzerinde Eylemler menüsüyle doğrudan 1080p/720p/480p/360p MP4 Video veya 320/192/128 kbps MP3 Ses olarak anında indirme başlatma.",
                 "Hızlı Bağlantı Kutusu Eylemleri: URL giriş kutusu üzerinde Eylemler menüsüyle tek adımda 'Panodan Yapıştır ve Hemen İncele', 'Panodan Yapıştır' ve 'Metni Temizle' desteği.",
