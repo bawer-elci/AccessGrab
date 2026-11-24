@@ -5,7 +5,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import com.baverelci.accessgrab.accessibility.AccessibilityHelper
+import com.baverelci.accessgrab.accessibility.ShakeDetectorHelper
 import com.baverelci.accessgrab.downloader.ApkInstallHelper
+import com.baverelci.accessgrab.player.InAppPlayerManager
 import com.baverelci.accessgrab.ui.screens.MainScreen
 import com.baverelci.accessgrab.ui.theme.AccessGrabTheme
 import com.baverelci.accessgrab.viewmodel.MainViewModel
@@ -13,9 +16,21 @@ import com.baverelci.accessgrab.viewmodel.MainViewModel
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
+    private var shakeDetector: ShakeDetectorHelper? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        shakeDetector = ShakeDetectorHelper(this) {
+            if (viewModel.prefs.isShakeToPlayPauseEnabled.value && InAppPlayerManager.state.value.isActive) {
+                val nowPlaying = InAppPlayerManager.togglePlayPause()
+                if (viewModel.prefs.isHapticEnabled.value) {
+                    AccessibilityHelper.vibrateSuccess(this)
+                }
+                val msg = if (nowPlaying) "Oynatmaya devam ediliyor" else "Oynatma duraklatıldı"
+                window?.decorView?.let { AccessibilityHelper.announce(it, msg) }
+            }
+        }
 
         // Sosyal medya paylaşım menüsünden (Instagram, TikTok, YouTube vb.) gelen linki yakala
         handleIntent(intent)
@@ -35,6 +50,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        shakeDetector?.start()
         // Uygulama ön plana geldiğinde panoyu kontrol et
         viewModel.checkClipboard(this)
 
@@ -46,6 +62,11 @@ class MainActivity : ComponentActivity() {
                 ApkInstallHelper.installApk(this, pendingApk)
             }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        shakeDetector?.stop()
     }
 
     private fun handleIntent(intent: Intent?) {

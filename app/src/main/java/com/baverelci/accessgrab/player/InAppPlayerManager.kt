@@ -1,11 +1,15 @@
 package com.baverelci.accessgrab.player
 
+import android.content.Context
 import android.media.MediaPlayer
 import android.media.PlaybackParams
 import android.os.Build
+import android.os.PowerManager
 import android.view.SurfaceHolder
 import com.baverelci.accessgrab.data.AppLogger
 import com.baverelci.accessgrab.data.DownloadedMediaFile
+import com.baverelci.accessgrab.data.PreferencesManager
+import com.baverelci.accessgrab.notification.PlayerNotificationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,15 +50,14 @@ object InAppPlayerManager {
     private var activeSurfaceHolder: SurfaceHolder? = null
     private var progressJob: Job? = null
     private var playlist: List<DownloadedMediaFile> = emptyList()
+    private var appContext: Context? = null
+    private var prefsManager: PreferencesManager? = null
 
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private val availableSpeeds = listOf(1.0f, 1.25f, 1.5f, 2.0f)
 
-    /**
-     * Video görüntüsünün ekrandaki pencereye çizilmesi için SurfaceHolder bağlar.
-     */
     fun attachSurfaceHolder(holder: SurfaceHolder?) {
         activeSurfaceHolder = holder
         try {
@@ -71,27 +74,52 @@ object InAppPlayerManager {
         }
     }
 
-    fun playMedia(target: DownloadedMediaFile, currentList: List<DownloadedMediaFile> = emptyList()) {
+    /**
+     * Medyayı başlatır ve kaldığı saniye varsa (forceFromStart = false ise) otomatik olarak oradan devam ettirir.
+     * Döndürülen Int: Başlatılan milisaniye konumu (0 ise baştan başlamıştır).
+     */
+    fun playMedia(
+        target: DownloadedMediaFile,
+        currentList: List<DownloadedMediaFile> = emptyList(),
+        context: Context? = null,
+        prefs: PreferencesManager? = null,
+        forceFromStart: Boolean = false
+    ): Int {
+        if (context != null) appContext = context.applicationContext
+        if (prefs != null) prefsManager = prefs
         if (currentList.isNotEmpty()) {
             playlist = currentList
         } else if (playlist.isEmpty()) {
             playlist = listOf(target)
         }
 
+        // Mevcut oynatılan dosyanın kaldığı yeri kaydet
+        saveCurrentPositionIfApplicable()
         stopInternal()
 
+        val savedPos = if (!forceFromStart) {
+            prefsManager?.getSavedPlaybackPosition(target.name) ?: 0
+        } else {
+            prefsManager?.clearSavedPlaybackPosition(target.name)
+            0
+        }
+
         val currentSpeed = _state.value.playbackSpeed
-        // Pencerenin hemen açılması için state'i ilk anda aktif hale getir
         _state.value = PlayerState(
             currentFile = target,
             isPlaying = false,
-            currentPositionMs = 0,
+            currentPositionMs = savedPos,
             durationMs = 0,
             playbackSpeed = currentSpeed
         )
 
         try {
             val mp = MediaPlayer().apply {
+                appContext?.let { ctx ->
+                    try {
+                        setWakeMode(ctx, PowerManager.PARTIAL_WAKE_LOCK)
+                    } catch (_: Exception) {}
+                }
                 setDataSource(target.file.absolutePath)
                 activeSurfaceHolder?.let { holder ->
                     try {
@@ -115,19 +143,29 @@ object InAppPlayerManager {
                             player.playbackParams = PlaybackParams().setSpeed(currentSpeed)
                         } catch (_: Exception) {}
                     }
+                    val totalDur = player.duration.coerceAtLeast(0)
+                    val resumeTarget = if (savedPos in 5001 until (totalDur - 3000).coerceAtLeast(5002)) {
+                        player.seekTo(savedPos)
+                        savedPos
+                    } else {
+                        0
+                    }
                     player.start()
                     _state.value = _state.value.copy(
                         currentFile = target,
                         isPlaying = true,
-                        currentPositionMs = 0,
-                        durationMs = player.duration.coerceAtLeast(0),
+                        currentPositionMs = resumeTarget,
+                        durationMs = totalDur,
                         playbackSpeed = currentSpeed,
                         videoWidth = player.videoWidth,
                         videoHeight = player.videoHeight
                     )
+                    updateNotification()
                     startProgressTicker()
                 }
                 setOnCompletionListener {
+                    // Biten dosyanın kaldığı yer kaydını sıfırla ki bir sonraki açılışta baştan başlasın
+                    prefsManager?.clearSavedPlaybackPosition(target.name)
                     playNextOrStop()
                 }
                 setOnErrorListener { _, what, extra ->
@@ -138,22 +176,42 @@ object InAppPlayerManager {
                 prepareAsync()
             }
             mediaPlayer = mp
-            AppLogger.log("PLAYER_START", "Oynatıcı penceresi başlatıldı: ${target.name}")
+            AppLogger.log("PLAYER_START", "Oynatıcı başlatıldı: ${target.name} (resumeMs=$savedPos)")
+            return savedPos
         } catch (e: Exception) {
             AppLogger.log("PLAYER_ERR", "Medya açılamadı: ${target.name}", e)
             stop()
+            return 0
         }
     }
 
-    fun togglePlayPause() {
-        val mp = mediaPlayer ?: return
-        try {
+    fun restartFromBeginning() {
+        val current = _state.value.currentFile ?: return
+        prefsManager?.clearSavedPlaybackPosition(current.name)
+        val mp = mediaPlayer
+        if (mp != null) {
+            try {
+                mp.seekTo(0)
+                if (!mp.isPlaying) mp.start()
+                _state.value = _state.value.copy(currentPositionMs = 0, isPlaying = true)
+                updateNotification()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun togglePlayPause(): Boolean {
+        val mp = mediaPlayer ?: return false
+        return try {
             if (mp.isPlaying) {
                 mp.pause()
+                val pos = mp.currentPosition.coerceAtLeast(0)
                 _state.value = _state.value.copy(
                     isPlaying = false,
-                    currentPositionMs = mp.currentPosition.coerceAtLeast(0)
+                    currentPositionMs = pos
                 )
+                saveCurrentPositionIfApplicable()
+                updateNotification()
+                false
             } else {
                 mp.start()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -162,9 +220,13 @@ object InAppPlayerManager {
                     } catch (_: Exception) {}
                 }
                 _state.value = _state.value.copy(isPlaying = true)
+                updateNotification()
                 startProgressTicker()
+                true
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun seekBy(deltaMs: Int) {
@@ -174,6 +236,8 @@ object InAppPlayerManager {
             val newPos = (mp.currentPosition + deltaMs).coerceIn(0, dur)
             mp.seekTo(newPos)
             _state.value = _state.value.copy(currentPositionMs = newPos)
+            saveCurrentPositionIfApplicable()
+            updateNotification()
         } catch (_: Exception) {}
     }
 
@@ -200,7 +264,7 @@ object InAppPlayerManager {
         val currentPath = _state.value.currentFile?.file?.absolutePath ?: return false
         val idx = playlist.indexOfFirst { it.file.absolutePath == currentPath }
         if (idx >= 0 && idx + 1 < playlist.size) {
-            playMedia(playlist[idx + 1], playlist)
+            playMedia(playlist[idx + 1], playlist, appContext, prefsManager)
             return true
         }
         return false
@@ -210,7 +274,7 @@ object InAppPlayerManager {
         val currentPath = _state.value.currentFile?.file?.absolutePath ?: return false
         val idx = playlist.indexOfFirst { it.file.absolutePath == currentPath }
         if (idx > 0) {
-            playMedia(playlist[idx - 1], playlist)
+            playMedia(playlist[idx - 1], playlist, appContext, prefsManager)
             return true
         }
         return false
@@ -223,8 +287,34 @@ object InAppPlayerManager {
     }
 
     fun stop() {
+        saveCurrentPositionIfApplicable()
         stopInternal()
+        PlayerNotificationHelper.cancelNotification(appContext)
         _state.value = PlayerState()
+    }
+
+    private fun saveCurrentPositionIfApplicable() {
+        val current = _state.value.currentFile ?: return
+        val pos = _state.value.currentPositionMs
+        val dur = _state.value.durationMs
+        if (pos > 5000 && (dur <= 0 || pos < dur - 3000)) {
+            prefsManager?.savePlaybackPosition(current.name, pos)
+        } else if (dur > 0 && pos >= dur - 3000) {
+            prefsManager?.clearSavedPlaybackPosition(current.name)
+        }
+    }
+
+    private fun updateNotification() {
+        val ctx = appContext ?: return
+        val s = _state.value
+        val file = s.currentFile ?: return
+        PlayerNotificationHelper.showOrUpdateNotification(
+            context = ctx,
+            title = file.name,
+            isPlaying = s.isPlaying,
+            positionText = s.formattedPosition,
+            durationText = s.formattedDuration
+        )
     }
 
     private fun stopInternal() {
@@ -245,6 +335,7 @@ object InAppPlayerManager {
     private fun startProgressTicker() {
         progressJob?.cancel()
         progressJob = scope.launch {
+            var tickCount = 0
             while (true) {
                 val mp = mediaPlayer ?: break
                 try {
@@ -254,6 +345,11 @@ object InAppPlayerManager {
                             currentPositionMs = mp.currentPosition.coerceAtLeast(0),
                             durationMs = mp.duration.coerceAtLeast(0)
                         )
+                        tickCount++
+                        if (tickCount % 5 == 0) {
+                            saveCurrentPositionIfApplicable()
+                            updateNotification()
+                        }
                     }
                 } catch (_: Exception) {}
                 delay(400)

@@ -80,6 +80,8 @@ fun SettingsScreen(
     val isHaptic by prefs.isHapticEnabled.collectAsState()
     val isClipboard by prefs.isClipboardEnabled.collectAsState()
     val isAutoUpdate by prefs.isAutoUpdateEnabled.collectAsState()
+    val isShakePlayPause by prefs.isShakeToPlayPauseEnabled.collectAsState()
+    val isCompletionSound by prefs.isCompletionSoundEnabled.collectAsState()
     val defaultFormat by prefs.defaultFormat.collectAsState()
 
     val updateInfo by viewModel.updateInfo.collectAsState()
@@ -496,6 +498,85 @@ fun SettingsScreen(
                             prefs.setHapticEnabled(it)
                             if (it) AccessibilityHelper.vibrateSuccess(context)
                         },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // İndirme Tamamlandığında Özel Onay Sesi Anahtarı
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {
+                            this.contentDescription = "İndirme Tamamlanma Sesi anahtarı, şu an ${if (isCompletionSound) "açık" else "kapalı"}. Çift dokunarak değiştirebilirsiniz."
+                        }
+                        .clickable {
+                            val newVal = !isCompletionSound
+                            prefs.setCompletionSoundEnabled(newVal)
+                            if (newVal) AccessibilityHelper.playCompletionSound()
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "İndirme Tamamlanma Sesi",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "İndirme bittiğinde uzaktan da duyulabilen kısa onay sesi çal",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                    Switch(
+                        checked = isCompletionSound,
+                        onCheckedChange = {
+                            prefs.setCompletionSoundEnabled(it)
+                            if (it) AccessibilityHelper.playCompletionSound()
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Telefonu Sallayarak Duraklat / Oynat Anahtarı
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {
+                            this.contentDescription = "Telefonu Sallayarak Duraklat veya Oynat anahtarı, şu an ${if (isShakePlayPause) "açık" else "kapalı"}. Çift dokunarak değiştirebilirsiniz."
+                        }
+                        .clickable {
+                            prefs.setShakeToPlayPauseEnabled(!isShakePlayPause)
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Sallayarak Duraklat / Oynat",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Oynatıcı açıkken telefonu hafifçe sallayarak medyayı duraklat veya başlat",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                    Switch(
+                        checked = isShakePlayPause,
+                        onCheckedChange = { prefs.setShakeToPlayPauseEnabled(it) },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colorScheme.primary,
                             checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)

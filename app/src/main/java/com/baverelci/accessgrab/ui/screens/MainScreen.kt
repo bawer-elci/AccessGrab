@@ -58,6 +58,7 @@ import com.baverelci.accessgrab.ui.components.DownloadCompletedCard
 import com.baverelci.accessgrab.ui.components.DownloadErrorCard
 import com.baverelci.accessgrab.ui.components.DownloadProgressCard
 import com.baverelci.accessgrab.ui.components.QualitySelectorCard
+import com.baverelci.accessgrab.ui.components.SearchResultsCard
 import com.baverelci.accessgrab.ui.components.UrlInputCard
 import com.baverelci.accessgrab.viewmodel.MainViewModel
 import com.baverelci.accessgrab.viewmodel.UiState
@@ -73,6 +74,7 @@ fun MainScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val currentTab by viewModel.currentTab.collectAsState()
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
+    val isCompletionSound by viewModel.prefs.isCompletionSoundEnabled.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val queueFeedback by viewModel.queueFeedbackMessage.collectAsState()
 
@@ -97,6 +99,10 @@ fun MainScreen(
             is UiState.Loading -> {
                 AccessibilityHelper.announce(view, state.message)
             }
+            is UiState.SearchResultsReady -> {
+                if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                AccessibilityHelper.announce(view, "\"${state.query}\" için ${state.results.size} sonuç bulundu.")
+            }
             is UiState.MediaReady -> {
                 if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
                 val msg = "${state.data.platform} medyası hazır: ${state.data.title}. MP4 video veya MP3 ses olarak indirebilirsiniz."
@@ -109,6 +115,7 @@ fun MainScreen(
             }
             is UiState.DownloadCompleted -> {
                 if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                if (isCompletionSound) AccessibilityHelper.playCompletionSound()
                 AccessibilityHelper.announce(view, "İndirme tamamlandı: ${state.title}")
             }
             is UiState.DownloadInitiated -> {
@@ -332,6 +339,29 @@ fun DownloaderContent(
                 canRetry = errorState.canRetry,
                 onRetry = { viewModel.retryLastAction(context) },
                 onDismiss = { viewModel.resetState() }
+            )
+        }
+
+        // Doğrudan Kelimeyle Arama Sonuçları Listesi
+        if (uiState is UiState.SearchResultsReady) {
+            val searchState = uiState as UiState.SearchResultsReady
+            SearchResultsCard(
+                query = searchState.query,
+                results = searchState.results,
+                onSelectResultForQuality = { item ->
+                    viewModel.selectSearchResultForQuality(item)
+                },
+                onDirectDownload = { item, fmt, qual ->
+                    viewModel.selectFormat(fmt)
+                    viewModel.selectQuality(qual)
+                    viewModel.startTrackedDownload(
+                        context = context,
+                        mediaUrl = item.url,
+                        format = fmt,
+                        title = item.title,
+                        quality = qual
+                    )
+                }
             )
         }
 

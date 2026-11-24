@@ -11,20 +11,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
 import com.baverelci.accessgrab.data.DownloadedMediaFile
 import com.baverelci.accessgrab.data.MediaFileManager
+import com.baverelci.accessgrab.data.RingtoneHelper
 import com.baverelci.accessgrab.player.InAppPlayerManager
 import com.baverelci.accessgrab.ui.components.AccessibleButton
 import com.baverelci.accessgrab.ui.components.InAppPlayerCard
@@ -64,23 +73,23 @@ fun LibraryScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
+    val activeRingtonePath by viewModel.prefs.activeRingtonePath.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val playerState by InAppPlayerManager.state.collectAsState()
 
     var files by remember { mutableStateOf(MediaFileManager.getDownloadedFiles(context)) }
     var fileToDelete by remember { mutableStateOf<DownloadedMediaFile?>(null) }
+    var fileForOptionsMenu by remember { mutableStateOf<DownloadedMediaFile?>(null) }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
 
     fun syncFiles() {
         files = MediaFileManager.getDownloadedFiles(context)
     }
 
-    // İndirme durumu değiştiğinde veya sekme açıldığında anında senkronize et
     LaunchedEffect(uiState) {
         syncFiles()
     }
 
-    // Sekme açıkken arka planda tamamlanan indirmeleri veya silinen dosyaları otomatik algıla
     LaunchedEffect(Unit) {
         while (true) {
             syncFiles()
@@ -93,6 +102,191 @@ fun LibraryScreen(
             AccessibilityHelper.announce(view, msg)
             feedbackMessage = null
         }
+    }
+
+    fun handlePlay(item: DownloadedMediaFile, fromBeginning: Boolean = false) {
+        if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+        val resumedMs = InAppPlayerManager.playMedia(
+            target = item,
+            currentList = files,
+            context = context,
+            prefs = viewModel.prefs,
+            forceFromStart = fromBeginning
+        )
+        if (resumedMs > 5000 && !fromBeginning) {
+            val mins = (resumedMs / 1000) / 60
+            val secs = (resumedMs / 1000) % 60
+            feedbackMessage = "${item.name} kaldığınız yerden devam ediyor (${String.format("%02d:%02d", mins, secs)})."
+        } else {
+            feedbackMessage = "${item.name} oynatılıyor."
+        }
+    }
+
+    fun handleSetRingtone(item: DownloadedMediaFile) {
+        val res = RingtoneHelper.setAsRingtone(context, item.file, viewModel.prefs)
+        if (res.isSuccess) {
+            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+            feedbackMessage = res.getOrNull()
+        } else {
+            if (isHaptic) AccessibilityHelper.vibrateError(context)
+            feedbackMessage = res.exceptionOrNull()?.message
+        }
+    }
+
+    fun handleRemoveRingtone() {
+        val res = RingtoneHelper.removeCustomRingtone(context, viewModel.prefs)
+        if (res.isSuccess) {
+            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+            feedbackMessage = res.getOrNull()
+        } else {
+            if (isHaptic) AccessibilityHelper.vibrateError(context)
+            feedbackMessage = res.exceptionOrNull()?.message
+        }
+    }
+
+    // "Diğer Seçenekler" Menüsü Diyaloğu (Oynat, Baştan Başlat, Paylaş, Zil Sesi Yap / Kaldır, Harici Aç, Sil)
+    if (fileForOptionsMenu != null) {
+        val target = fileForOptionsMenu!!
+        val isThisRingtone = activeRingtonePath == target.file.absolutePath
+        val hasAnyCustomRingtone = !activeRingtonePath.isNullOrBlank()
+        val savedPos = viewModel.prefs.getSavedPlaybackPosition(target.name)
+
+        AlertDialog(
+            onDismissRequest = { fileForOptionsMenu = null },
+            title = {
+                Text(
+                    text = target.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "${target.extension} • ${target.formattedSize} • ${target.formattedDate}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                    )
+
+                    AccessibleButton(
+                        text = if (savedPos > 5000) "Kaldığım Yerden Oynat" else "Oynat",
+                        contentDesc = "${target.name} dosyasını uygulama içinde oynat",
+                        icon = Icons.Default.PlayArrow,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        onClick = {
+                            val item = target
+                            fileForOptionsMenu = null
+                            handlePlay(item, fromBeginning = false)
+                        }
+                    )
+
+                    if (savedPos > 5000) {
+                        AccessibleButton(
+                            text = "Baştan Başlat",
+                            contentDesc = "${target.name} dosyasını en baştan başlat",
+                            icon = Icons.Default.Replay,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            onClick = {
+                                val item = target
+                                fileForOptionsMenu = null
+                                handlePlay(item, fromBeginning = true)
+                            }
+                        )
+                    }
+
+                    AccessibleButton(
+                        text = "Paylaş",
+                        contentDesc = "${target.name} dosyasını paylaş",
+                        icon = Icons.Default.Share,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        onClick = {
+                            val item = target
+                            fileForOptionsMenu = null
+                            val result = MediaFileManager.shareMediaFile(context, item.file)
+                            if (result.isFailure) {
+                                if (isHaptic) AccessibilityHelper.vibrateError(context)
+                                feedbackMessage = "Paylaşım ekranı başlatılamadı."
+                            }
+                        }
+                    )
+
+                    if (!isThisRingtone) {
+                        AccessibleButton(
+                            text = "Zil Sesi Yap",
+                            contentDesc = "${target.name} dosyasını telefon zil sesi yap",
+                            icon = Icons.Default.NotificationsActive,
+                            containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                            contentColor = MaterialTheme.colorScheme.secondary,
+                            onClick = {
+                                val item = target
+                                fileForOptionsMenu = null
+                                handleSetRingtone(item)
+                            }
+                        )
+                    }
+
+                    if (isThisRingtone || hasAnyCustomRingtone) {
+                        AccessibleButton(
+                            text = "Zil Sesini Kaldır (Eskiye Dön)",
+                            contentDesc = "Ayarlanan zil sesini kaldır ve önceki zil sesine dön",
+                            icon = Icons.Default.NotificationsOff,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            onClick = {
+                                fileForOptionsMenu = null
+                                handleRemoveRingtone()
+                            }
+                        )
+                    }
+
+                    AccessibleButton(
+                        text = "Harici Oynatıcıda Aç",
+                        contentDesc = "${target.name} dosyasını telefonun harici oynatıcısında aç",
+                        icon = Icons.Default.OpenInNew,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        onClick = {
+                            val item = target
+                            fileForOptionsMenu = null
+                            val result = MediaFileManager.openMediaFile(context, item.file)
+                            if (result.isFailure) {
+                                if (isHaptic) AccessibilityHelper.vibrateError(context)
+                                feedbackMessage = "Dosya açılamadı: Uygun bir harici medya oynatıcı bulunamadı."
+                            }
+                        }
+                    )
+
+                    AccessibleButton(
+                        text = "Sil",
+                        contentDesc = "${target.name} dosyasını cihazdan sil",
+                        icon = Icons.Default.Delete,
+                        containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                        contentColor = MaterialTheme.colorScheme.error,
+                        onClick = {
+                            val item = target
+                            fileForOptionsMenu = null
+                            fileToDelete = item
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                AccessibleButton(
+                    text = "Kapat",
+                    contentDesc = "Seçenekler menüsünü kapat",
+                    icon = Icons.Default.Close,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    onClick = { fileForOptionsMenu = null }
+                )
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     }
 
     // Silme Onay Diyaloğu
@@ -127,6 +321,7 @@ fun LibraryScreen(
                         }
                         val deleted = MediaFileManager.deleteMediaFile(target.file, context)
                         if (deleted) {
+                            viewModel.prefs.clearSavedPlaybackPosition(target.name)
                             if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
                             feedbackMessage = "${target.name} dosyası silindi."
                             syncFiles()
@@ -158,7 +353,6 @@ fun LibraryScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Başlık ve Otomatik Dosya Sayacı (Tam genişlik, ezilmeyen erişilebilir başlık)
         Column(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -176,7 +370,7 @@ fun LibraryScreen(
             )
         }
 
-        // Uygulama İçi Erişilebilir Medya Oynatıcı (Aktifse gösterilir)
+        // Görüntülü Video & Ses Oynatıcı Penceresi (Aktifse ekranda açılır)
         if (playerState.isActive) {
             InAppPlayerCard(
                 playerState = playerState,
@@ -190,6 +384,10 @@ fun LibraryScreen(
                 onSeekForward = {
                     InAppPlayerManager.seekBy(10_000)
                     feedbackMessage = "10 saniye ileri sarıldı"
+                },
+                onRestartFromBeginning = {
+                    InAppPlayerManager.restartFromBeginning()
+                    feedbackMessage = "En baştan başlatıldı"
                 },
                 onNext = {
                     if (InAppPlayerManager.playNext()) {
@@ -218,7 +416,6 @@ fun LibraryScreen(
         }
 
         if (files.isEmpty()) {
-            // Boş Durum Kartı
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -255,7 +452,6 @@ fun LibraryScreen(
                 }
             }
         } else {
-            // İndirilen Dosyalar Listesi (Kalan tüm dikey alanı kaplar)
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -264,12 +460,27 @@ fun LibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(files, key = { it.file.absolutePath }) { item ->
+                    val isRingtone = activeRingtonePath == item.file.absolutePath
+                    val savedPos = viewModel.prefs.getSavedPlaybackPosition(item.name)
+
                     MediaFileItemCard(
                         item = item,
+                        isCurrentRingtone = isRingtone,
+                        savedPositionMs = savedPos,
                         onOpen = {
-                            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
-                            InAppPlayerManager.playMedia(item, files)
-                            feedbackMessage = "${item.name} oynatılıyor."
+                            handlePlay(item, fromBeginning = false)
+                        },
+                        onRestartFromBeginning = {
+                            handlePlay(item, fromBeginning = true)
+                        },
+                        onOpenOptionsMenu = {
+                            fileForOptionsMenu = item
+                        },
+                        onSetRingtone = {
+                            handleSetRingtone(item)
+                        },
+                        onRemoveRingtone = {
+                            handleRemoveRingtone()
                         },
                         onOpenExternal = {
                             val result = MediaFileManager.openMediaFile(context, item.file)
@@ -298,93 +509,162 @@ fun LibraryScreen(
 @Composable
 fun MediaFileItemCard(
     item: DownloadedMediaFile,
+    isCurrentRingtone: Boolean = false,
+    savedPositionMs: Int = 0,
     onOpen: () -> Unit,
+    onRestartFromBeginning: () -> Unit,
+    onOpenOptionsMenu: () -> Unit,
+    onSetRingtone: () -> Unit,
+    onRemoveRingtone: () -> Unit,
     onOpenExternal: (() -> Unit)? = null,
     onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val typeLabel = if (item.isAudio) "MP3 Ses" else "MP4 Video"
-    val accessibleDesc = "$typeLabel: ${item.name}. Boyut: ${item.formattedSize}. Tarih: ${item.formattedDate}."
+    val ringtoneBadge = if (isCurrentRingtone) " (Aktif Zil Sesi)" else ""
+    val resumeBadge = if (savedPositionMs > 5000) {
+        val mins = (savedPositionMs / 1000) / 60
+        val secs = (savedPositionMs / 1000) % 60
+        " • Kaldığınız yer: ${String.format("%02d:%02d", mins, secs)}"
+    } else ""
+
+    val accessibleDesc = "$typeLabel$ringtoneBadge: ${item.name}. Boyut: ${item.formattedSize}. Tarih: ${item.formattedDate}$resumeBadge."
 
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpen)
-            .semantics {
-                this.contentDescription = accessibleDesc
-                this.role = Role.Button
-                val actions = mutableListOf(
-                    CustomAccessibilityAction(label = "Uygulama İçinde Oynat") {
-                        onOpen()
-                        true
-                    }
-                )
-                if (onOpenExternal != null) {
-                    actions.add(
-                        CustomAccessibilityAction(label = "Harici Oynatıcıda Aç") {
-                            onOpenExternal()
-                            true
-                        }
-                    )
-                }
-                actions.add(
-                    CustomAccessibilityAction(label = "Paylaş") {
-                        onShare()
-                        true
-                    }
-                )
-                actions.add(
-                    CustomAccessibilityAction(label = "Sil") {
-                        onDelete()
-                        true
-                    }
-                )
-                this.customActions = actions
-            }
+        modifier = modifier.fillMaxWidth()
     ) {
-        // Görsel ikonlar ve butonlar gören kullanıcılar için ekranda kalır;
-        // clearAndSetSemantics sayesinde TalkBack bunlara tek tek takılmaz, tüm işlemleri kartın Eylemler menüsünden sunar.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .clearAndSetSemantics { },
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = if (item.isAudio) Icons.Default.Audiotrack else Icons.Default.VideoLibrary,
-                    contentDescription = null,
-                    tint = if (item.isAudio) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
-                )
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2
+                // Sol/Orta Alan: Dosya bilgisi (Tek öğe olarak okunur, çift dokununca oynatır ve TalkBack Eylemler menüsü içerir)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onOpen)
+                        .semantics {
+                            this.contentDescription = accessibleDesc
+                            this.role = Role.Button
+                            val actions = mutableListOf(
+                                CustomAccessibilityAction(
+                                    label = if (savedPositionMs > 5000) "Kaldığım Yerden Oynat" else "Oynat"
+                                ) {
+                                    onOpen()
+                                    true
+                                }
+                            )
+                            if (savedPositionMs > 5000) {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Baştan Başlat") {
+                                        onRestartFromBeginning()
+                                        true
+                                    }
+                                )
+                            }
+                            actions.add(
+                                CustomAccessibilityAction(label = "Paylaş") {
+                                    onShare()
+                                    true
+                                }
+                            )
+                            if (!isCurrentRingtone) {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Zil Sesi Yap") {
+                                        onSetRingtone()
+                                        true
+                                    }
+                                )
+                            } else {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Zil Sesini Kaldır") {
+                                        onRemoveRingtone()
+                                        true
+                                    }
+                                )
+                            }
+                            actions.add(
+                                CustomAccessibilityAction(label = "Diğer Seçenekler Menüsü") {
+                                    onOpenOptionsMenu()
+                                    true
+                                }
+                            )
+                            if (onOpenExternal != null) {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Harici Oynatıcıda Aç") {
+                                        onOpenExternal()
+                                        true
+                                    }
+                                )
+                            }
+                            actions.add(
+                                CustomAccessibilityAction(label = "Sil") {
+                                    onDelete()
+                                    true
+                                }
+                            )
+                            this.customActions = actions
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (item.isAudio) Icons.Default.Audiotrack else Icons.Default.VideoLibrary,
+                        contentDescription = null,
+                        tint = if (item.isAudio) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${item.extension} • ${item.formattedSize} • ${item.formattedDate}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clearAndSetSemantics { }
+                    ) {
+                        Text(
+                            text = item.name + ringtoneBadge,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "${item.extension} • ${item.formattedSize} • ${item.formattedDate}$resumeBadge",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                        )
+                    }
+                }
+
+                // Dosyanın hemen yanında erişilebilir "Diğer Seçenekler" butonu (Paylaş, Sil, Zil Sesi Yap / Kaldır)
+                IconButton(
+                    onClick = onOpenOptionsMenu,
+                    modifier = Modifier.semantics {
+                        this.contentDescription = "${item.name} için diğer seçenekler"
+                        this.role = Role.Button
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
-            // Görsel Aksiyon Butonları (Gören kullanıcılar için ekranda görünür, TalkBack Eylemler menüsünde yer alır)
+            // Görsel Aksiyon Butonları (Gören kullanıcılar için ekranda görünür, TalkBack taramasından gizlidir)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clearAndSetSemantics { },
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AccessibleButton(

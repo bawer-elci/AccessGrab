@@ -7,6 +7,28 @@ data class ExtractRequest(
     @SerializedName("key") val key: String? = null
 )
 
+data class SearchRequest(
+    @SerializedName("query") val query: String,
+    @SerializedName("limit") val limit: Int = 8,
+    @SerializedName("key") val key: String? = null
+)
+
+data class SearchResultItem(
+    @SerializedName("platform") val platform: String,
+    @SerializedName("title") val title: String,
+    @SerializedName("author") val author: String,
+    @SerializedName("duration") val duration: Int,
+    @SerializedName("duration_formatted") val durationFormatted: String,
+    @SerializedName("thumbnail") val thumbnail: String,
+    @SerializedName("url") val url: String
+)
+
+data class SearchResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("query") val query: String,
+    @SerializedName("results") val results: List<SearchResultItem>
+)
+
 data class FormatOption(
     @SerializedName("format") val format: String,
     @SerializedName("label") val label: String,

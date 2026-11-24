@@ -18,6 +18,12 @@ interface AccessGrabService {
         @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
     ): ExtractResponse
 
+    @POST("api/search")
+    suspend fun searchMedia(
+        @Body request: SearchRequest,
+        @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
+    ): SearchResponse
+
     @GET("api/version")
     suspend fun getLatestVersion(): UpdateInfo
 

@@ -10,9 +10,20 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.7.1",
+            version = "v1.8.0",
             date = "25 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Uygulamadan Çıkmadan Doğrudan Kelimeyle & Sesle Arama: Kutuya şarkı, sanatçı veya video adı yazarak ya da 'Sesle Ara (Mikrofon)' butonunu/eylemini kullanarak sonuçları anında listeleme ve tek dokunuşla MP3/MP4 indirme.",
+                "Diğer Seçenekler Menüsü & Zil Sesi Yap / Kaldır: Kütüphane'de her dosyanın yanına 'Diğer Seçenekler' butonu ve TalkBack eylemleri eklendi; indirilen dosyayı doğrudan Telefon Zil Sesi Yapma ve tek dokunuşla eski zil sesine dönme.",
+                "Kaldığım Yerden Devam Et & Ekran Kilitliyken Çalma: Uzun ders ve müzik kayıtlarında kalınan saniyeyi otomatik hatırlama, ekran kapalıyken kesintisiz çalma ve bildirim çubuğundan oynatıcı kontrolü.",
+                "Telefonu Sallayarak Duraklat/Oynat & İndirme Onay Sesi: Oynatıcı açıkken telefonu hafifçe sallayarak duraklatıp başlatabilme ve indirme bittiğinde duyulabilir onay sesi."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.7.1",
+            date = "25 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Görüntülü Video & Ses Oynatıcı Penceresi: Kütüphane'de bir dosyaya tıklandığında açılan tam boy pencerede hem gerçek video görüntüsü (SurfaceView) hem de büyük Duraklat/Oynat, 10 Sn İleri, 10 Sn Geri, Hızlandır (1x/1.25x/1.5x/2x), Önceki/Sonraki ve Kapat düğmeleri.",
                 "Tek Dokunuşla Kesintisiz Güncelleme Kurulumu: Güncelleme indirildiğinde kurulum ekranının ilk seferde kapanmadan doğrudan açılması ve önbelleksiz APK indirme garantisi.",

@@ -14,7 +14,10 @@ import com.baverelci.accessgrab.downloader.DownloadHelper
 import com.baverelci.accessgrab.network.AccessGrabApi
 import com.baverelci.accessgrab.network.ExtractRequest
 import com.baverelci.accessgrab.network.ExtractResponse
+import com.baverelci.accessgrab.network.FormatOption
 import com.baverelci.accessgrab.network.LogReportRequest
+import com.baverelci.accessgrab.network.SearchRequest
+import com.baverelci.accessgrab.network.SearchResultItem
 import com.baverelci.accessgrab.network.UpdateInfo
 import com.baverelci.accessgrab.notification.DownloadNotificationHelper
 import com.baverelci.accessgrab.notification.UpdateNotificationHelper
@@ -32,6 +35,7 @@ import java.util.regex.Pattern
 sealed class UiState {
     object Idle : UiState()
     data class Loading(val message: String = "Medya bilgisi alınıyor…") : UiState()
+    data class SearchResultsReady(val query: String, val results: List<SearchResultItem>) : UiState()
     data class MediaReady(val data: ExtractResponse) : UiState()
     data class Downloading(
         val title: String,
@@ -220,18 +224,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun fetchMediaInfo(targetUrl: String? = null) {
         val rawUrl = (targetUrl ?: _urlInput.value).trim()
+
+        if (rawUrl.isBlank()) {
+            _uiState.value = UiState.Error("Lütfen aramak istediğiniz kelimeyi veya bir bağlantı adresi girin.")
+            return
+        }
+
         val allUrls = extractAllUrlsFromText(rawUrl)
+
+        // Eğer girilen metin bir URL değilse (http/https içermiyorsa) doğrudan kelimeyle arama yap
+        if (allUrls.isEmpty() && !rawUrl.startsWith("http://", ignoreCase = true) && !rawUrl.startsWith("https://", ignoreCase = true)) {
+            searchMediaByQuery(rawUrl)
+            return
+        }
+
         val cleanUrl = allUrls.firstOrNull() ?: rawUrl
-
-        if (cleanUrl.isBlank()) {
-            _uiState.value = UiState.Error("Lütfen bir bağlantı adresi girin.")
-            return
-        }
-
-        if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
-            _uiState.value = UiState.Error("Geçerli bir internet bağlantısı girin (http veya https ile başlamalı).")
-            return
-        }
 
         // Kullanıcı birden fazla linki aynı anda yapıştırdıysa kalanları toplu indirme kuyruğuna hazırla
         pendingBatchUrls.clear()
@@ -262,6 +269,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = UiState.Error("Hata: $errorMsg", canRetry = true)
             }
         }
+    }
+
+    private fun searchMediaByQuery(query: String) {
+        _uiState.value = UiState.Loading("\"$query\" aranıyor…")
+        AppLogger.log("SEARCH_START", "Kelime araması başlatıldı: $query")
+
+        viewModelScope.launch {
+            try {
+                val response = AccessGrabApi.service.searchMedia(SearchRequest(query = query, limit = 8))
+                if (response.results.isEmpty()) {
+                    _uiState.value = UiState.Error("\"$query\" için sonuç bulunamadı. Lütfen farklı bir kelime deneyin.")
+                } else {
+                    AppLogger.log("SEARCH_OK", "${response.results.size} sonuç bulundu ($query)")
+                    _uiState.value = UiState.SearchResultsReady(query = query, results = response.results)
+                }
+            } catch (e: Exception) {
+                AppLogger.log("SEARCH_ERR", "Arama hatası ($query)", e)
+                val errorMsg = e.localizedMessage ?: "Arama sunucusuna bağlanılamadı."
+                _uiState.value = UiState.Error("Arama hatası: $errorMsg", canRetry = true)
+            }
+        }
+    }
+
+    fun selectSearchResultForQuality(item: SearchResultItem) {
+        _uiState.value = UiState.MediaReady(
+            ExtractResponse(
+                success = true,
+                platform = item.platform,
+                title = item.title,
+                author = item.author,
+                duration = item.duration,
+                durationFormatted = item.durationFormatted,
+                thumbnail = item.thumbnail,
+                url = item.url,
+                supportedFormats = listOf(
+                    FormatOption("mp4", "Video (MP4)", "HD Video"),
+                    FormatOption("mp3", "Ses (MP3)", "Yüksek Kalite Ses")
+                )
+            )
+        )
     }
 
     fun startTrackedDownload(

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -61,6 +62,7 @@ fun InAppPlayerCard(
     onTogglePlayPause: () -> Unit,
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
+    onRestartFromBeginning: (() -> Unit)? = null,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onCycleSpeed: () -> Unit,
@@ -129,6 +131,10 @@ fun InAppPlayerCard(
                                 },
                                 CustomAccessibilityAction("Hızlandır (${playerState.formattedSpeed})") {
                                     onCycleSpeed()
+                                    true
+                                },
+                                CustomAccessibilityAction("Baştan Başlat") {
+                                    onRestartFromBeginning?.invoke()
                                     true
                                 },
                                 CustomAccessibilityAction("Sonraki Medyaya Geç") {
@@ -295,15 +301,33 @@ fun InAppPlayerCard(
                     )
                 }
 
-                // Hızlandır ve Önceki/Sonraki Satırı
-                AccessibleButton(
-                    text = "Hızlandır (${playerState.formattedSpeed})",
-                    contentDesc = "Oynatma hızını değiştir. Şu anki hız: ${playerState.formattedSpeed}",
-                    icon = Icons.Default.Speed,
-                    containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
-                    contentColor = MaterialTheme.colorScheme.secondary,
-                    onClick = onCycleSpeed
-                )
+                // Hızlandır ve Baştan Başlat Satırı
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AccessibleButton(
+                        text = "Hız (${playerState.formattedSpeed})",
+                        contentDesc = "Oynatma hızını değiştir. Şu anki hız: ${playerState.formattedSpeed}",
+                        icon = Icons.Default.Speed,
+                        containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                        contentColor = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.weight(1f),
+                        onClick = onCycleSpeed
+                    )
+
+                    if (onRestartFromBeginning != null) {
+                        AccessibleButton(
+                            text = "Baştan",
+                            contentDesc = "Medyayı en baştan başlat",
+                            icon = Icons.Default.Replay,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                            onClick = onRestartFromBeginning
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

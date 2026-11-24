@@ -1,6 +1,8 @@
 package com.baverelci.accessgrab.accessibility
 
 import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -47,6 +49,16 @@ object AccessibilityHelper {
                 @Suppress("DEPRECATION")
                 vibrator.vibrate(longArrayOf(0, 80, 80, 120), -1)
             }
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * İndirme tamamlandığında uzaktan da duyulabilen hoş ve kısa bir onay sesi (bip/melodi) çalar.
+     */
+    fun playCompletionSound() {
+        try {
+            val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85)
+            toneGen.startTone(ToneGenerator.TONE_PROP_ACK, 260)
         } catch (_: Exception) {}
     }
 
