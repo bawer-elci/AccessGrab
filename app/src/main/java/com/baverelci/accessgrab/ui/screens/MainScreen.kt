@@ -349,10 +349,7 @@ fun DownloaderContent(
                 title = state.title,
                 format = state.format,
                 onOpenFile = {
-                    try {
-                        val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)
-                        context.startActivity(intent)
-                    } catch (_: Exception) {}
+                    viewModel.selectTab(1)
                 },
                 onNewMedia = {
                     viewModel.resetState()

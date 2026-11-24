@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.5.0",
+            version = "v1.5.1",
             date = "24 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Kütüphane Ekranı Yerleşim ve Görünürlük Düzeltmesi: İndirilen dosyaların listede görünmesini engelleyen başlık/buton genişlik çakışması giderildi.",
+                "Tam Otomatik Kütüphane Senkronizasyonu: Gereksiz manuel yenileme butonu kaldırılarak indirilen tüm medya dosyalarının anında otomatik listelenmesi sağlandı.",
+                "Geliştirilmiş TalkBack Kart Gezinmesi: Her medya kartı için doğrudan çift dokunuşla oynatma ve bağımsız Oynat, Paylaş, Sil düğmeleri optimize edildi."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.5.0",
+            date = "24 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Kütüphanem (İndirilen Dosyalar) Sekmesi: İndirilen tüm MP4 video ve MP3 ses dosyalarını uygulama içinden doğrudan listeleme, açma/oynatma, paylaşma ve silme.",
                 "Akıllı Yeniden Deneme (Smart Retry): Bağlantı kopması veya indirme hatalarında tek dokunuşla aynı kalite ve ayarlarla yeniden indirme.",

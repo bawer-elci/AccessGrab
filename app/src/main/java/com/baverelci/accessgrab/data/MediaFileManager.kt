@@ -1,5 +1,6 @@
 package com.baverelci.accessgrab.data
 
+import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -28,19 +29,57 @@ object MediaFileManager {
         return File(downloadsDir, "AccessGrab")
     }
 
-    fun getDownloadedFiles(): List<DownloadedMediaFile> {
+    fun getDownloadedFiles(context: Context? = null): List<DownloadedMediaFile> {
+        val collectedFiles = linkedMapOf<String, File>()
+
+        // 1. Doğrudan Download/AccessGrab klasöründeki medya dosyalarını tara
         val dir = getAccessGrabDirectory()
-        if (!dir.exists() || !dir.isDirectory) {
-            return emptyList()
+        if (dir.exists() && dir.isDirectory) {
+            dir.listFiles { f ->
+                f.isFile && f.length() > 0L && (
+                    f.name.endsWith(".mp4", ignoreCase = true) ||
+                    f.name.endsWith(".mp3", ignoreCase = true)
+                )
+            }?.forEach { file ->
+                collectedFiles[file.absolutePath] = file
+            }
         }
 
-        val files = dir.listFiles { f ->
-            f.isFile && (f.name.endsWith(".mp4", ignoreCase = true) || f.name.endsWith(".mp3", ignoreCase = true))
-        } ?: return emptyList()
+        // 2. Sistem DownloadManager kayıtlarından tamamlanan indirmeleri de doğrula (Scoped Storage güvencesi)
+        if (context != null) {
+            try {
+                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+                if (dm != null) {
+                    val query = DownloadManager.Query().setFilterByStatus(DownloadManager.STATUS_SUCCESSFUL)
+                    dm.query(query)?.use { cursor ->
+                        val localUriIdx = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
+                        while (cursor.moveToNext()) {
+                            if (localUriIdx >= 0) {
+                                val localUriStr = cursor.getString(localUriIdx) ?: continue
+                                val uri = Uri.parse(localUriStr)
+                                if (uri.scheme == "file") {
+                                    val path = uri.path ?: continue
+                                    val f = File(path)
+                                    if (f.exists() && f.isFile && f.length() > 0L && (
+                                            f.name.endsWith(".mp4", ignoreCase = true) ||
+                                            f.name.endsWith(".mp3", ignoreCase = true)
+                                        )
+                                    ) {
+                                        collectedFiles[f.absolutePath] = f
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        if (collectedFiles.isEmpty()) return emptyList()
 
         val dateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("tr", "TR"))
 
-        return files.map { file ->
+        return collectedFiles.values.map { file ->
             val ext = file.extension.lowercase()
             val isAudio = ext == "mp3"
             DownloadedMediaFile(
@@ -64,7 +103,7 @@ object MediaFileManager {
                 file
             )
             val ext = file.extension.lowercase()
-            val mimeType = if (ext == "mp3") "audio/*" else "video/*"
+            val mimeType = if (ext == "mp3") "audio/mpeg" else "video/mp4"
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, mimeType)
@@ -74,7 +113,24 @@ object MediaFileManager {
             context.startActivity(intent)
             Result.success(Unit)
         } catch (e: Exception) {
-            Result.failure(e)
+            try {
+                val uri: Uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val ext = file.extension.lowercase()
+                val fallbackMime = if (ext == "mp3") "audio/*" else "video/*"
+                val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, fallbackMime)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(fallbackIntent)
+                Result.success(Unit)
+            } catch (ex: Exception) {
+                Result.failure(ex)
+            }
         }
     }
 
@@ -86,7 +142,7 @@ object MediaFileManager {
                 file
             )
             val ext = file.extension.lowercase()
-            val mimeType = if (ext == "mp3") "audio/*" else "video/*"
+            val mimeType = if (ext == "mp3") "audio/mpeg" else "video/mp4"
 
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = mimeType

@@ -1,8 +1,9 @@
 package com.baverelci.accessgrab.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -39,8 +38,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
@@ -48,6 +49,7 @@ import com.baverelci.accessgrab.data.DownloadedMediaFile
 import com.baverelci.accessgrab.data.MediaFileManager
 import com.baverelci.accessgrab.ui.components.AccessibleButton
 import com.baverelci.accessgrab.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun LibraryScreen(
@@ -57,17 +59,27 @@ fun LibraryScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
-    var files by remember { mutableStateOf<List<DownloadedMediaFile>>(emptyList()) }
+    var files by remember { mutableStateOf(MediaFileManager.getDownloadedFiles(context)) }
     var fileToDelete by remember { mutableStateOf<DownloadedMediaFile?>(null) }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
 
-    fun refreshFiles() {
-        files = MediaFileManager.getDownloadedFiles()
+    fun syncFiles() {
+        files = MediaFileManager.getDownloadedFiles(context)
     }
 
+    // İndirme durumu değiştiğinde veya sekme açıldığında anında senkronize et
+    LaunchedEffect(uiState) {
+        syncFiles()
+    }
+
+    // Sekme açıkken arka planda tamamlanan indirmeleri veya silinen dosyaları otomatik algıla
     LaunchedEffect(Unit) {
-        refreshFiles()
+        while (true) {
+            syncFiles()
+            delay(1500)
+        }
     }
 
     LaunchedEffect(feedbackMessage) {
@@ -107,8 +119,8 @@ fun LibraryScreen(
                         val deleted = MediaFileManager.deleteMediaFile(target.file)
                         if (deleted) {
                             if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
-                            feedbackMessage = "${target.name} dosyası başarıyla silindi."
-                            refreshFiles()
+                            feedbackMessage = "${target.name} dosyası silindi."
+                            syncFiles()
                         } else {
                             if (isHaptic) AccessibilityHelper.vibrateError(context)
                             feedbackMessage = "Dosya silinemedi."
@@ -135,39 +147,23 @@ fun LibraryScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Başlık ve Yenile Butonu
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Başlık ve Otomatik Dosya Sayacı (Tam genişlik, ezilmeyen erişilebilir başlık)
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Kütüphanem",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.semantics { heading() }
-                )
-                Text(
-                    text = if (files.isEmpty()) "Henüz indirilmiş medya yok" else "${files.size} adet medya dosyası",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                )
-            }
-
-            AccessibleButton(
-                text = "Yenile",
-                contentDesc = "İndirilen dosyalar listesini yenile",
-                icon = Icons.Default.Refresh,
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                onClick = {
-                    refreshFiles()
-                    if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
-                    feedbackMessage = "Dosya listesi güncellendi. Toplam ${files.size} dosya var."
-                }
+            Text(
+                text = "Kütüphanem",
+                style = MaterialTheme.typography.headlineLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.semantics { heading() }
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = if (files.isEmpty()) "Henüz indirilmiş medya yok" else "Toplam ${files.size} adet indirilen medya dosyası",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
             )
         }
 
@@ -179,7 +175,7 @@ fun LibraryScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics(mergeDescendants = true) {
-                        this.contentDescription = "Kütüphaneniz şu an boş. İndir sekmesinden indirdiğiniz tüm video ve sesler burada listelenecektir."
+                        this.contentDescription = "Kütüphaneniz şu an boş. İndir sekmesinden indirdiğiniz tüm video ve sesler burada otomatik olarak listelenecektir."
                     }
             ) {
                 Column(
@@ -201,16 +197,19 @@ fun LibraryScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "İndir sekmesinden indirdiğiniz tüm MP4 videolar ve MP3 sesler telefonunuzun AccessGrab klasörüne kaydedilir ve burada erişilebilir olarak listelenir.",
+                        text = "İndir sekmesinden indirdiğiniz tüm MP4 videolar ve MP3 sesler telefonunuzun AccessGrab klasörüne kaydedilir ve burada otomatik olarak listelenir.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                     )
                 }
             }
         } else {
-            // İndirilen Dosyalar Listesi
+            // İndirilen Dosyalar Listesi (Kalan tüm dikey alanı kaplar)
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(files, key = { it.file.absolutePath }) { item ->
@@ -220,14 +219,14 @@ fun LibraryScreen(
                             val result = MediaFileManager.openMediaFile(context, item.file)
                             if (result.isFailure) {
                                 if (isHaptic) AccessibilityHelper.vibrateError(context)
-                                feedbackMessage = "Dosya açılamadı: Uygun bir oynatıcı bulunamadı."
+                                feedbackMessage = "Dosya açılamadı: Uygun bir medya oynatıcı bulunamadı."
                             }
                         },
                         onShare = {
                             val result = MediaFileManager.shareMediaFile(context, item.file)
                             if (result.isFailure) {
                                 if (isHaptic) AccessibilityHelper.vibrateError(context)
-                                feedbackMessage = "Paylaşım başlatılamadı."
+                                feedbackMessage = "Paylaşım ekranı başlatılamadı."
                             }
                         },
                         onDelete = {
@@ -248,24 +247,29 @@ fun MediaFileItemCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accessibleDesc = "${item.extension} dosyası: ${item.name}. Boyut: ${item.formattedSize}. Tarih: ${item.formattedDate}."
+    val typeLabel = if (item.isAudio) "MP3 Ses" else "MP4 Video"
+    val accessibleDesc = "$typeLabel: ${item.name}. Boyut: ${item.formattedSize}. Tarih: ${item.formattedDate}. Doğrudan oynatmak için çift dokunun."
 
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) {
-                this.contentDescription = accessibleDesc
-            }
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Dosya Bilgisi Alanı (Tek bir TalkBack düğümü olarak okunur ve çift dokununca doğrudan oynatır)
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpen)
+                    .semantics(mergeDescendants = true) {
+                        this.contentDescription = accessibleDesc
+                        this.role = Role.Button
+                    },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -283,23 +287,23 @@ fun MediaFileItemCard(
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "${item.extension} • ${item.formattedSize} • ${item.formattedDate}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                     )
                 }
             }
 
-            // Aksiyon Butonları (Oynat, Paylaş, Sil)
+            // Aksiyon Butonları (Oynat, Paylaş, Sil - Her biri bağımsız ve net erişilebilir düğme)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AccessibleButton(
-                    text = "Aç",
-                    contentDesc = "${item.name} dosyasını aç ve oynat",
+                    text = "Oynat",
+                    contentDesc = "${item.name} dosyasını oynat",
                     icon = Icons.Default.PlayArrow,
                     containerColor = if (item.isAudio) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,
                     contentColor = if (item.isAudio) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onPrimary,
@@ -309,7 +313,7 @@ fun MediaFileItemCard(
 
                 AccessibleButton(
                     text = "Paylaş",
-                    contentDesc = "${item.name} dosyasını diğer uygulamalarla paylaş",
+                    contentDesc = "${item.name} dosyasını paylaş",
                     icon = Icons.Default.Share,
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface,
@@ -323,7 +327,7 @@ fun MediaFileItemCard(
                     icon = Icons.Default.Delete,
                     containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
                     contentColor = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.weight(0.7f),
+                    modifier = Modifier.weight(0.85f),
                     onClick = onDelete
                 )
             }

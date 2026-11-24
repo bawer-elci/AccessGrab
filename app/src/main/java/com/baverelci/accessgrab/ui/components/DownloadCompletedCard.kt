@@ -87,8 +87,8 @@ fun DownloadCompletedCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 AccessibleButton(
-                    text = "Dosyayı Aç",
-                    contentDesc = "İndirilenler klasörünü aç ve dosyayı gör",
+                    text = "Kütüphanede Gör",
+                    contentDesc = "Kütüphane sekmesine geç ve indirilen dosyayı görüntüle",
                     icon = Icons.Default.FolderOpen,
                     containerColor = MaterialTheme.colorScheme.secondary,
                     contentColor = MaterialTheme.colorScheme.onSecondary,

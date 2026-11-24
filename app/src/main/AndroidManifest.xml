@@ -7,11 +7,19 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Android 11+ Paket Yükleyici Görünürlüğü (Package Visibility) -->
+    <!-- Android 11+ Paket Yükleyici ve Medya Oynatıcı Görünürlüğü (Package Visibility) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="audio/*" />
         </intent>
         <package android:name="com.google.android.packageinstaller" />
         <package android:name="com.android.packageinstaller" />
