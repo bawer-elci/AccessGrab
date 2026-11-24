@@ -40,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -67,9 +69,19 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val currentTab by viewModel.currentTab.collectAsState()
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+
+    // Sekme değiştiğinde veya medya analizi/indirme başladığında klavyeyi otomatik kapat
+    LaunchedEffect(currentTab, uiState) {
+        if (currentTab != 0 || uiState !is UiState.Idle) {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        }
+    }
 
     // TalkBack canlı durum bildirimleri
     LaunchedEffect(uiState) {

@@ -37,3 +37,20 @@ data class UpdateInfo(
 data class ErrorResponse(
     @SerializedName("detail") val detail: String?
 )
+
+data class LogReportRequest(
+    @SerializedName("device_manufacturer") val deviceManufacturer: String,
+    @SerializedName("device_model") val deviceModel: String,
+    @SerializedName("android_version") val androidVersion: String,
+    @SerializedName("sdk_int") val sdkInt: Int,
+    @SerializedName("app_version") val appVersion: String,
+    @SerializedName("logs") val logs: String,
+    @SerializedName("user_note") val userNote: String? = null,
+    @SerializedName("key") val key: String? = null
+)
+
+data class LogReportResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("report_id") val reportId: String?,
+    @SerializedName("message") val message: String?
+)

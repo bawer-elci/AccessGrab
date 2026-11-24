@@ -21,6 +21,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
@@ -82,6 +83,8 @@ fun SettingsScreen(
     val updateInfo by viewModel.updateInfo.collectAsState()
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
     val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
+    val isSendingLogs by viewModel.isSendingLogs.collectAsState()
+    val logReportStatusMessage by viewModel.logReportStatusMessage.collectAsState()
 
     var isInstallingUpdate by remember { mutableStateOf(false) }
     var installProgress by remember { mutableStateOf(0) }
@@ -94,6 +97,12 @@ fun SettingsScreen(
 
     LaunchedEffect(updateStatusMessage) {
         updateStatusMessage?.let { msg ->
+            AccessibilityHelper.announce(view, msg)
+        }
+    }
+
+    LaunchedEffect(logReportStatusMessage) {
+        logReportStatusMessage?.let { msg ->
             AccessibilityHelper.announce(view, msg)
         }
     }
@@ -621,6 +630,60 @@ fun SettingsScreen(
                             val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)
                             context.startActivity(intent)
                         } catch (_: Exception) {}
+                    }
+                )
+            }
+        }
+
+        // 6. Hata ve Tanılama Kayıtlarını Gönder (Log Gönder)
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.BugReport,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Hata ve Tanılama Kayıtları",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { heading() }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "İndirme veya erişilebilirlik sırasında bir sorun yaşarsanız, cihaz ve uygulama hata günlüklerini (Logları) tek dokunuşla geliştirici sunucusuna gönderebilirsiniz.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                if (logReportStatusMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = logReportStatusMessage!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                AccessibleButton(
+                    text = if (isSendingLogs) "Kayıtlar Gönderiliyor…" else "Hata Kayıtlarını (Logları) Gönder",
+                    contentDesc = if (isSendingLogs) "Tanılama kayıtları gönderiliyor" else "Hata ve tanılama kayıtlarını geliştirici sunucusuna gönder",
+                    icon = Icons.Default.BugReport,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    enabled = !isSendingLogs,
+                    onClick = {
+                        if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                        viewModel.sendDiagnosticLogs()
                     }
                 )
             }

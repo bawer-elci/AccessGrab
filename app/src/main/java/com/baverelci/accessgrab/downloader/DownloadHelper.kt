@@ -6,6 +6,7 @@ import android.media.MediaScannerConnection
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.baverelci.accessgrab.data.AppLogger
 import com.baverelci.accessgrab.network.AccessGrabApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -73,6 +74,7 @@ object DownloadHelper {
                 .build()
 
             downloadClient.newCall(request).execute().use { response ->
+                AppLogger.log("DOWNLOAD_HTTP", "HTTP ${response.code} yanıtı alındı ($fileName)")
                 if (!response.isSuccessful) {
                     val code = response.code
                     val errMsg = when (code) {

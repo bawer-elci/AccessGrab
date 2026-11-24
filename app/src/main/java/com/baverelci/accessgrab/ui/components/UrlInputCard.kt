@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ContentPaste
@@ -20,11 +22,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -38,6 +44,13 @@ fun UrlInputCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    fun hideKeyboard() {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+    }
 
     fun readClipboardText(): String {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -52,6 +65,20 @@ fun UrlInputCard(
             placeholder = { Text("Instagram, TikTok, YouTube, X, Facebook linki") },
             singleLine = false,
             maxLines = 3,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Search
+            ),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    hideKeyboard()
+                    onFetchMedia()
+                },
+                onDone = {
+                    hideKeyboard()
+                    onFetchMedia()
+                }
+            ),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
@@ -75,6 +102,7 @@ fun UrlInputCard(
                         onClick = {
                             val clip = readClipboardText()
                             if (clip.isNotBlank()) {
+                                hideKeyboard()
                                 onUrlChanged(clip)
                             }
                         }
@@ -96,6 +124,7 @@ fun UrlInputCard(
                         CustomAccessibilityAction("Panodan Yapıştır ve Hemen İncele") {
                             val clip = readClipboardText()
                             if (clip.isNotBlank()) {
+                                hideKeyboard()
                                 if (onPasteAndFetch != null) {
                                     onPasteAndFetch(clip)
                                 } else {
@@ -110,6 +139,7 @@ fun UrlInputCard(
                         CustomAccessibilityAction("Panodan Yapıştır") {
                             val clip = readClipboardText()
                             if (clip.isNotBlank()) {
+                                hideKeyboard()
                                 onUrlChanged(clip)
                             }
                             true
@@ -118,6 +148,7 @@ fun UrlInputCard(
                     if (urlInput.isNotBlank()) {
                         actions.add(
                             CustomAccessibilityAction("Medyayı İncele") {
+                                hideKeyboard()
                                 onFetchMedia()
                                 true
                             }
@@ -139,7 +170,10 @@ fun UrlInputCard(
             text = "Medyayı İncele",
             contentDesc = "Girilen bağlantıdaki medyayı incele ve indirme seçeneklerini getir",
             icon = Icons.Default.Search,
-            onClick = onFetchMedia,
+            onClick = {
+                hideKeyboard()
+                onFetchMedia()
+            },
             enabled = !isLoading
         )
     }

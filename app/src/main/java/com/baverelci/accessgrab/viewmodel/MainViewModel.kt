@@ -7,11 +7,14 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import android.app.DownloadManager
+import android.os.Build
+import com.baverelci.accessgrab.data.AppLogger
 import com.baverelci.accessgrab.data.PreferencesManager
 import com.baverelci.accessgrab.downloader.DownloadHelper
 import com.baverelci.accessgrab.network.AccessGrabApi
 import com.baverelci.accessgrab.network.ExtractRequest
 import com.baverelci.accessgrab.network.ExtractResponse
+import com.baverelci.accessgrab.network.LogReportRequest
 import com.baverelci.accessgrab.network.UpdateInfo
 import com.baverelci.accessgrab.notification.UpdateNotificationHelper
 import kotlinx.coroutines.Dispatchers
@@ -123,7 +126,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _updateErrorMessage = MutableStateFlow<String?>(null)
     val updateErrorMessage: StateFlow<String?> = _updateErrorMessage.asStateFlow()
 
+    // Tanılama Kayıtları (Log Gönderme) Durumları
+    private val _isSendingLogs = MutableStateFlow(false)
+    val isSendingLogs: StateFlow<Boolean> = _isSendingLogs.asStateFlow()
+
+    private val _logReportStatusMessage = MutableStateFlow<String?>(null)
+    val logReportStatusMessage: StateFlow<String?> = _logReportStatusMessage.asStateFlow()
+
     init {
+        AppLogger.init(application, currentVersionName)
         // Uygulama açılışında arka planda sessizce güncelleme kontrolü
         checkForUpdates(isManual = false)
     }
@@ -197,10 +208,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         _uiState.value = UiState.Loading("Medya analiz ediliyor...")
+        AppLogger.log("EXTRACT_START", "Bağlantı inceleniyor: $cleanUrl")
 
         viewModelScope.launch {
             try {
                 val response = AccessGrabApi.service.extractMedia(ExtractRequest(url = cleanUrl))
+                AppLogger.log("EXTRACT_OK", "Medya bulundu: [${response.platform}] ${response.title} (${response.durationFormatted})")
                 _uiState.value = UiState.MediaReady(response)
 
                 // Otomatik hızlı indirme kontrolü
@@ -211,6 +224,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AccessGrab", "Extract error: ${e.message}", e)
+                AppLogger.log("EXTRACT_ERR", "Medya analiz hatası ($cleanUrl)", e)
                 val errorMsg = e.localizedMessage ?: "Sunucuya bağlanılamadı. Lütfen tekrar deneyin."
                 _uiState.value = UiState.Error("Hata: $errorMsg", canRetry = true)
             }
@@ -237,6 +251,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         val appContext = getApplication<Application>().applicationContext
+        AppLogger.log("DOWNLOAD_START", "İndirme başlatıldı: [$formatLabel] $title")
 
         viewModelScope.launch {
             val result = DownloadHelper.downloadMediaDirect(
@@ -258,12 +273,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             if (result.isSuccess) {
+                val savedFile = result.getOrNull()
+                AppLogger.log("DOWNLOAD_OK", "İndirme tamamlandı: ${savedFile?.name} (${savedFile?.length()} bayt)")
                 _uiState.value = UiState.DownloadCompleted(
                     title = title,
                     format = formatLabel
                 )
             } else {
-                val err = result.exceptionOrNull()?.localizedMessage
+                val ex = result.exceptionOrNull()
+                AppLogger.log("DOWNLOAD_ERR", "İndirme başarısız: [$formatLabel] $title", ex)
+                val err = ex?.localizedMessage
                     ?: "İndirme işlemi tamamlanamadı. Bağlantınızı kontrol edip yeniden deneyebilirsiniz."
                 _uiState.value = UiState.Error(
                     message = err,
@@ -363,6 +382,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissUpdateErrorDialog() {
         _updateErrorMessage.value = null
+    }
+
+    /**
+     * Cihaz ve uygulama hata/tanılama kayıtlarını geliştirici sunucusuna gönderir.
+     */
+    fun sendDiagnosticLogs(userNote: String? = null) {
+        if (_isSendingLogs.value) return
+        _isSendingLogs.value = true
+        _logReportStatusMessage.value = "Tanılama kayıtları gönderiliyor…"
+
+        viewModelScope.launch {
+            try {
+                AppLogger.log("LOG_REPORT", "Kullanıcı tanılama kayıtlarını gönderiyor")
+                val reportText = withContext(Dispatchers.IO) {
+                    AppLogger.buildFullReport()
+                }
+                val request = LogReportRequest(
+                    deviceManufacturer = Build.MANUFACTURER ?: "Unknown",
+                    deviceModel = Build.MODEL ?: "Unknown",
+                    androidVersion = Build.VERSION.RELEASE ?: "Unknown",
+                    sdkInt = Build.VERSION.SDK_INT,
+                    appVersion = currentVersionName,
+                    logs = reportText,
+                    userNote = userNote
+                )
+                val response = AccessGrabApi.service.reportClientLog(request)
+                _isSendingLogs.value = false
+                _logReportStatusMessage.value = response.message
+                    ?: "Hata ve tanılama kayıtları başarıyla gönderildi (Kod: ${response.reportId ?: "OK"})."
+            } catch (e: Exception) {
+                _isSendingLogs.value = false
+                _logReportStatusMessage.value = "Kayıtlar gönderilemedi: ${e.localizedMessage ?: "Bağlantınızı kontrol edin."}"
+            }
+        }
     }
 
     private fun extractUrlFromText(text: String): String? {

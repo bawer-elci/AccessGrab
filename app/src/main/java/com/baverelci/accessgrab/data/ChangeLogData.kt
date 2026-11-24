@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.6.0",
+            version = "v1.6.1",
             date = "24 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Otomatik Klavye Kapatma: Bağlantı yapıştırıldığında, 'Medyayı İncele'ye basıldığında veya sekme değiştirildiğinde ekran klavyesinin otomatik kapanması sağlandı.",
+                "Hata ve Tanılama Kayıtlarını Gönder (Log Gönder): Ayarlar sekmesine cihaz bilgilerini, uygulama içi olay günlüğünü ve sistem hatalarını tek dokunuşla geliştirici sunucusuna ileten tanılama sistemi eklendi.",
+                "Android 7.0 – 16 ve Redmi/MIUI Doğrudan İndirme Motoru optimizasyonları."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.6.0",
+            date = "24 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Yeni Doğrudan İndirme Motoru (Redmi / MIUI & HyperOS Tam Uyumu): Sistem DownloadManager kısıtlamalarına ve 20 sn zaman aşımına (HTTP 499) takılmayan, uygulama içi yüksek hızlı doğrudan akış (OkHttp Streaming) motoruna geçildi.",
                 "Android 7.0 – Android 16 (API 24 – 35+) Genişletilmiş Cihaz Desteği: Eski ve yeni tüm Android sürümlerinde çift katmanlı depolama (Uygulama Dizini + Genel İndirilenler / MediaStore) ve otomatik Galeri/Müzik tarayıcı entegrasyonu.",

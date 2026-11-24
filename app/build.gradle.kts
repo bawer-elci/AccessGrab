@@ -12,8 +12,8 @@ android {
         applicationId = "com.baverelci.accessgrab"
         minSdk = 24
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.6.0"
+        versionCode = 13
+        versionName = "1.6.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

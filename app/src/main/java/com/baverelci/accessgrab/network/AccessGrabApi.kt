@@ -20,6 +20,12 @@ interface AccessGrabService {
 
     @GET("api/version")
     suspend fun getLatestVersion(): UpdateInfo
+
+    @POST("api/report-log")
+    suspend fun reportClientLog(
+        @Body request: LogReportRequest,
+        @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
+    ): LogReportResponse
 }
 
 object AccessGrabApi {
