@@ -38,9 +38,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -250,28 +252,44 @@ fun MediaFileItemCard(
     modifier: Modifier = Modifier
 ) {
     val typeLabel = if (item.isAudio) "MP3 Ses" else "MP4 Video"
-    val accessibleDesc = "$typeLabel: ${item.name}. Boyut: ${item.formattedSize}. Tarih: ${item.formattedDate}. Doğrudan oynatmak için çift dokunun."
+    val accessibleDesc = "$typeLabel: ${item.name}. Boyut: ${item.formattedSize}. Tarih: ${item.formattedDate}."
 
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .semantics {
+                this.contentDescription = accessibleDesc
+                this.role = Role.Button
+                this.customActions = listOf(
+                    CustomAccessibilityAction(label = "Oynat") {
+                        onOpen()
+                        true
+                    },
+                    CustomAccessibilityAction(label = "Paylaş") {
+                        onShare()
+                        true
+                    },
+                    CustomAccessibilityAction(label = "Sil") {
+                        onDelete()
+                        true
+                    }
+                )
+            }
     ) {
+        // Görsel ikonlar ve butonlar gören kullanıcılar için ekranda kalır;
+        // clearAndSetSemantics sayesinde TalkBack bunlara tek tek takılmaz, tüm işlemleri kartın Eylemler menüsünden sunar.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .clearAndSetSemantics { },
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Dosya Bilgisi Alanı (Tek bir TalkBack düğümü olarak okunur ve çift dokununca doğrudan oynatır)
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpen)
-                    .semantics(mergeDescendants = true) {
-                        this.contentDescription = accessibleDesc
-                        this.role = Role.Button
-                    },
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -282,11 +300,7 @@ fun MediaFileItemCard(
                     modifier = Modifier.size(32.dp)
                 )
 
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clearAndSetSemantics { }
-                ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = item.name,
                         style = MaterialTheme.typography.titleMedium,
@@ -302,7 +316,7 @@ fun MediaFileItemCard(
                 }
             }
 
-            // Aksiyon Butonları (Oynat, Paylaş, Sil - Her biri bağımsız ve net erişilebilir düğme)
+            // Görsel Aksiyon Butonları (Gören kullanıcılar için ekranda görünür, TalkBack Eylemler menüsünde yer alır)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
