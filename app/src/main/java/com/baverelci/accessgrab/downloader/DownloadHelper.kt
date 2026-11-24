@@ -8,16 +8,33 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.baverelci.accessgrab.data.AppLogger
 import com.baverelci.accessgrab.network.AccessGrabApi
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.coroutineContext
 
 object DownloadHelper {
+
+    @Volatile
+    private var activeCall: Call? = null
+
+    /**
+     * Devam eden aktif HTTP indirme bağlantısını anında keser.
+     */
+    fun cancelCurrentCall() {
+        try {
+            activeCall?.cancel()
+        } catch (_: Exception) {}
+        activeCall = null
+    }
 
     /**
      * Redmi (MIUI / HyperOS), Xiaomi, Oppo, Vivo, Huawei ve Samsung dahil tüm cihazlarda
@@ -73,7 +90,11 @@ object DownloadHelper {
                 .header("X-AccessGrab-Key", AccessGrabApi.API_KEY)
                 .build()
 
-            downloadClient.newCall(request).execute().use { response ->
+            val call = downloadClient.newCall(request)
+            activeCall = call
+
+            call.execute().use { response ->
+                coroutineContext.ensureActive()
                 AppLogger.log("DOWNLOAD_HTTP", "HTTP ${response.code} yanıtı alındı ($fileName)")
                 if (!response.isSuccessful) {
                     val code = response.code
@@ -98,6 +119,7 @@ object DownloadHelper {
                         var bytesRead: Int
 
                         while (input.read(buffer).also { bytesRead = it } != -1) {
+                            coroutineContext.ensureActive()
                             output.write(buffer, 0, bytesRead)
                             downloadedBytes += bytesRead
 
@@ -132,9 +154,15 @@ object DownloadHelper {
                 val resultFile = exportedFile ?: finalAppFile
 
                 onProgress(100, downloadedBytes, if (totalBytes > 0L) totalBytes else downloadedBytes)
+                activeCall = null
                 Result.success(resultFile)
             }
+        } catch (e: CancellationException) {
+            activeCall = null
+            try { tempFile.delete() } catch (_: Exception) {}
+            throw e
         } catch (e: Exception) {
+            activeCall = null
             try { tempFile.delete() } catch (_: Exception) {}
             Result.failure(e)
         }

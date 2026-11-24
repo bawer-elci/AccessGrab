@@ -74,6 +74,14 @@ fun MainScreen(
     val currentTab by viewModel.currentTab.collectAsState()
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val queueFeedback by viewModel.queueFeedbackMessage.collectAsState()
+
+    LaunchedEffect(queueFeedback) {
+        queueFeedback?.let { msg ->
+            AccessibilityHelper.announce(view, msg)
+            viewModel.clearQueueFeedback()
+        }
+    }
 
     // Sekme değiştiğinde veya medya analizi/indirme başladığında klavyeyi otomatik kapat
     LaunchedEffect(currentTab, uiState) {
@@ -218,11 +226,13 @@ fun DownloaderContent(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
     val urlInput by viewModel.urlInput.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val selectedFormat by viewModel.selectedFormat.collectAsState()
     val selectedQuality by viewModel.selectedQuality.collectAsState()
     val clipboardUrl by viewModel.clipboardDetectedUrl.collectAsState()
+    val downloadQueue by viewModel.downloadQueue.collectAsState()
 
     Column(
         modifier = modifier
@@ -365,7 +375,17 @@ fun DownloaderContent(
                 format = state.format,
                 progress = state.progress,
                 downloadedBytes = state.downloadedBytes,
-                totalBytes = state.totalBytes
+                totalBytes = state.totalBytes,
+                queueCount = downloadQueue.size,
+                queuedTitles = downloadQueue.map { it.title },
+                onCancelDownload = {
+                    if (isHaptic) AccessibilityHelper.vibrateError(context)
+                    viewModel.cancelActiveDownload()
+                },
+                onCancelAllQueue = {
+                    if (isHaptic) AccessibilityHelper.vibrateError(context)
+                    viewModel.clearQueueAndCancelAll()
+                }
             )
         }
 

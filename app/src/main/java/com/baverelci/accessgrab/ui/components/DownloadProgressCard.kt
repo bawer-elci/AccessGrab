@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -22,8 +23,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -42,13 +46,18 @@ fun DownloadProgressCard(
     progress: Int,
     downloadedBytes: Long,
     totalBytes: Long,
+    queueCount: Int = 0,
+    queuedTitles: List<String> = emptyList(),
+    onCancelDownload: (() -> Unit)? = null,
+    onCancelAllQueue: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isPreparing = totalBytes <= 0L && downloadedBytes <= 0L
+    val queueSuffix = if (queueCount > 0) " Sırada bekleyen $queueCount medya var." else ""
     val statusDesc = if (isPreparing) {
-        "$title sunucuda hazırlanıyor, lütfen bekleyin."
+        "$title sunucuda hazırlanıyor, lütfen bekleyin.$queueSuffix"
     } else {
-        "$title indiriliyor. İlerleme: Yüzde $progress"
+        "$title indiriliyor. İlerleme: Yüzde $progress.$queueSuffix"
     }
 
     Card(
@@ -59,12 +68,33 @@ fun DownloadProgressCard(
             .semantics {
                 this.liveRegion = LiveRegionMode.Polite
                 this.contentDescription = statusDesc
+                val actions = mutableListOf<CustomAccessibilityAction>()
+                if (onCancelDownload != null) {
+                    actions.add(
+                        CustomAccessibilityAction("İndirmeyi İptal Et") {
+                            onCancelDownload()
+                            true
+                        }
+                    )
+                }
+                if (queueCount > 0 && onCancelAllQueue != null) {
+                    actions.add(
+                        CustomAccessibilityAction("Tüm Kuyruğu İptal Et ($queueCount bekleyen)") {
+                            onCancelAllQueue()
+                            true
+                        }
+                    )
+                }
+                if (actions.isNotEmpty()) {
+                    this.customActions = actions
+                }
             }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(20.dp)
+                .clearAndSetSemantics { },
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -137,6 +167,45 @@ fun DownloadProgressCard(
                     trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                     strokeCap = StrokeCap.Round
                 )
+            }
+
+            // İndirme Kuyruğu Bilgisi (Varsa)
+            if (queueCount > 0) {
+                Text(
+                    text = "Sırada Bekleyen ($queueCount): ${queuedTitles.take(2).joinToString(", ")}${if (queueCount > 2) "…" else ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            // İndirmeyi İptal Et Butonu
+            if (onCancelDownload != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AccessibleButton(
+                        text = if (queueCount > 0) "Bunu Geç / İptal" else "İndirmeyi İptal Et",
+                        contentDesc = "Mevcut indirmeyi iptal et",
+                        icon = Icons.Default.Close,
+                        containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                        contentColor = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                        onClick = onCancelDownload
+                    )
+
+                    if (queueCount > 0 && onCancelAllQueue != null) {
+                        AccessibleButton(
+                            text = "Tümünü Durdur",
+                            contentDesc = "Tüm indirme kuyruğunu iptal et",
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                            onClick = onCancelAllQueue
+                        )
+                    }
+                }
             }
         }
     }

@@ -50,7 +50,9 @@ import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
 import com.baverelci.accessgrab.data.DownloadedMediaFile
 import com.baverelci.accessgrab.data.MediaFileManager
+import com.baverelci.accessgrab.player.InAppPlayerManager
 import com.baverelci.accessgrab.ui.components.AccessibleButton
+import com.baverelci.accessgrab.ui.components.InAppPlayerCard
 import com.baverelci.accessgrab.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 
@@ -63,6 +65,7 @@ fun LibraryScreen(
     val view = LocalView.current
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val playerState by InAppPlayerManager.state.collectAsState()
 
     var files by remember { mutableStateOf(MediaFileManager.getDownloadedFiles(context)) }
     var fileToDelete by remember { mutableStateOf<DownloadedMediaFile?>(null) }
@@ -119,6 +122,9 @@ fun LibraryScreen(
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError,
                     onClick = {
+                        if (playerState.currentFile?.file?.absolutePath == target.file.absolutePath) {
+                            InAppPlayerManager.stop()
+                        }
                         val deleted = MediaFileManager.deleteMediaFile(target.file, context)
                         if (deleted) {
                             if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
@@ -167,6 +173,47 @@ fun LibraryScreen(
                 text = if (files.isEmpty()) "Henüz indirilmiş medya yok" else "Toplam ${files.size} adet indirilen medya dosyası",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+            )
+        }
+
+        // Uygulama İçi Erişilebilir Medya Oynatıcı (Aktifse gösterilir)
+        if (playerState.isActive) {
+            InAppPlayerCard(
+                playerState = playerState,
+                onTogglePlayPause = {
+                    InAppPlayerManager.togglePlayPause()
+                },
+                onSeekBackward = {
+                    InAppPlayerManager.seekBy(-10_000)
+                    feedbackMessage = "10 saniye geri sarıldı"
+                },
+                onSeekForward = {
+                    InAppPlayerManager.seekBy(10_000)
+                    feedbackMessage = "10 saniye ileri sarıldı"
+                },
+                onNext = {
+                    if (InAppPlayerManager.playNext()) {
+                        feedbackMessage = "Sonraki medyaya geçildi"
+                    } else {
+                        feedbackMessage = "Listenin sonundasınız"
+                    }
+                },
+                onPrevious = {
+                    if (InAppPlayerManager.playPrevious()) {
+                        feedbackMessage = "Önceki medyaya geçildi"
+                    } else {
+                        feedbackMessage = "Listenin başındasınız"
+                    }
+                },
+                onCycleSpeed = {
+                    val newSpeed = InAppPlayerManager.cyclePlaybackSpeed()
+                    val formatted = if (newSpeed % 1.0f == 0f) "${newSpeed.toInt()}x" else "${newSpeed}x"
+                    feedbackMessage = "Oynatma hızı: $formatted"
+                },
+                onStop = {
+                    InAppPlayerManager.stop()
+                    feedbackMessage = "Oynatıcı kapatıldı"
+                }
             )
         }
 
@@ -220,10 +267,15 @@ fun LibraryScreen(
                     MediaFileItemCard(
                         item = item,
                         onOpen = {
+                            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                            InAppPlayerManager.playMedia(item, files)
+                            feedbackMessage = "${item.name} oynatılıyor."
+                        },
+                        onOpenExternal = {
                             val result = MediaFileManager.openMediaFile(context, item.file)
                             if (result.isFailure) {
                                 if (isHaptic) AccessibilityHelper.vibrateError(context)
-                                feedbackMessage = "Dosya açılamadı: Uygun bir medya oynatıcı bulunamadı."
+                                feedbackMessage = "Dosya açılamadı: Uygun bir harici medya oynatıcı bulunamadı."
                             }
                         },
                         onShare = {
@@ -247,6 +299,7 @@ fun LibraryScreen(
 fun MediaFileItemCard(
     item: DownloadedMediaFile,
     onOpen: () -> Unit,
+    onOpenExternal: (() -> Unit)? = null,
     onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -263,20 +316,33 @@ fun MediaFileItemCard(
             .semantics {
                 this.contentDescription = accessibleDesc
                 this.role = Role.Button
-                this.customActions = listOf(
-                    CustomAccessibilityAction(label = "Oynat") {
+                val actions = mutableListOf(
+                    CustomAccessibilityAction(label = "Uygulama İçinde Oynat") {
                         onOpen()
                         true
-                    },
+                    }
+                )
+                if (onOpenExternal != null) {
+                    actions.add(
+                        CustomAccessibilityAction(label = "Harici Oynatıcıda Aç") {
+                            onOpenExternal()
+                            true
+                        }
+                    )
+                }
+                actions.add(
                     CustomAccessibilityAction(label = "Paylaş") {
                         onShare()
                         true
-                    },
+                    }
+                )
+                actions.add(
                     CustomAccessibilityAction(label = "Sil") {
                         onDelete()
                         true
                     }
                 )
+                this.customActions = actions
             }
     ) {
         // Görsel ikonlar ve butonlar gören kullanıcılar için ekranda kalır;

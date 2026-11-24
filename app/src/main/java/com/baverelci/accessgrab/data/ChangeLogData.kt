@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
+            version = "v1.7.0",
+            date = "25 Kasım 2026",
+            isLatest = true,
+            highlights = listOf(
+                "Uygulama İçi %100 Erişilebilir Medya & Podcast Oynatıcı: Kütüphane sekmesinde harici uygulamaya gerek kalmadan 10 sn ileri/geri sarma, oynatma hızı seçimi (1x, 1.25x, 1.5x, 2x), arka planda sırayla çalma ve TalkBack Eylemler menüsü desteği.",
+                "İndirmeyi İptal Et & Canlı Bildirim Çubuğu Desteği: Devam eden indirmeyi anında iptal edebilme ve uygulama arka plandayken bildirim çubuğunda canlı indirme yüzdesi takibi.",
+                "Toplu İndirme Kuyruğu (Multi-Link Queue): Birden fazla bağlantıyı aynı anda yapıştırarak veya indirme sürerken yeni medya ekleyerek sırayla otomatik indirme."
+            )
+        ),
+        ReleaseLog(
             version = "v1.6.1",
             date = "24 Kasım 2026",
-            isLatest = true,
+            isLatest = false,
             highlights = listOf(
                 "Otomatik Klavye Kapatma: Bağlantı yapıştırıldığında, 'Medyayı İncele'ye basıldığında veya sekme değiştirildiğinde ekran klavyesinin otomatik kapanması sağlandı.",
                 "Hata ve Tanılama Kayıtlarını Gönder (Log Gönder): Ayarlar sekmesine cihaz bilgilerini, uygulama içi olay günlüğünü ve sistem hatalarını tek dokunuşla geliştirici sunucusuna ileten tanılama sistemi eklendi.",

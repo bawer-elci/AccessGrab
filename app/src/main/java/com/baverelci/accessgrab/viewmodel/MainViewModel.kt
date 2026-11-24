@@ -16,8 +16,11 @@ import com.baverelci.accessgrab.network.ExtractRequest
 import com.baverelci.accessgrab.network.ExtractResponse
 import com.baverelci.accessgrab.network.LogReportRequest
 import com.baverelci.accessgrab.network.UpdateInfo
+import com.baverelci.accessgrab.notification.DownloadNotificationHelper
 import com.baverelci.accessgrab.notification.UpdateNotificationHelper
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +56,13 @@ data class LastDownloadParams(
     val quality: String? = null
 )
 
+data class QueuedDownloadItem(
+    val mediaUrl: String,
+    val format: String,
+    val title: String,
+    val quality: String? = null
+)
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val currentVersionCode: Long = try {
@@ -75,6 +85,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var isWaitingForInstallPermission = false
 
     private var lastDownloadParams: LastDownloadParams? = null
+    private var activeDownloadJob: Job? = null
+    private val pendingBatchUrls = ArrayDeque<String>()
+
+    private val _downloadQueue = MutableStateFlow<List<QueuedDownloadItem>>(emptyList())
+    val downloadQueue: StateFlow<List<QueuedDownloadItem>> = _downloadQueue.asStateFlow()
+
+    private val _queueFeedbackMessage = MutableStateFlow<String?>(null)
+    val queueFeedbackMessage: StateFlow<String?> = _queueFeedbackMessage.asStateFlow()
+
+    fun clearQueueFeedback() {
+        _queueFeedbackMessage.value = null
+    }
 
     val prefs = PreferencesManager(application)
 
@@ -195,7 +217,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun fetchMediaInfo(targetUrl: String? = null) {
         val rawUrl = (targetUrl ?: _urlInput.value).trim()
-        val cleanUrl = extractUrlFromText(rawUrl) ?: rawUrl
+        val allUrls = extractAllUrlsFromText(rawUrl)
+        val cleanUrl = allUrls.firstOrNull() ?: rawUrl
 
         if (cleanUrl.isBlank()) {
             _uiState.value = UiState.Error("Lütfen bir bağlantı adresi girin.")
@@ -207,8 +230,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // Kullanıcı birden fazla linki aynı anda yapıştırdıysa kalanları toplu indirme kuyruğuna hazırla
+        pendingBatchUrls.clear()
+        if (allUrls.size > 1) {
+            allUrls.drop(1).forEach { pendingBatchUrls.addLast(it) }
+            _queueFeedbackMessage.value = "${allUrls.size} adet bağlantı algılandı. İlk medya inceleniyor, diğer ${allUrls.size - 1} bağlantı sıraya alınacak."
+        }
+
         _uiState.value = UiState.Loading("Medya analiz ediliyor...")
-        AppLogger.log("EXTRACT_START", "Bağlantı inceleniyor: $cleanUrl")
+        AppLogger.log("EXTRACT_START", "Bağlantı inceleniyor: $cleanUrl (Toplam algılanan: ${allUrls.size})")
 
         viewModelScope.launch {
             try {
@@ -238,6 +268,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         title: String,
         quality: String? = null
     ) {
+        val appContext = getApplication<Application>().applicationContext
+
+        // Eğer kullanıcı tek seferde birden fazla URL yapıştırdıysa kalan URL'leri arka planda çözüp kuyruğa ekle
+        if (pendingBatchUrls.isNotEmpty()) {
+            val batchUrls = pendingBatchUrls.toList()
+            pendingBatchUrls.clear()
+            viewModelScope.launch {
+                for (extraUrl in batchUrls) {
+                    try {
+                        val info = AccessGrabApi.service.extractMedia(ExtractRequest(url = extraUrl))
+                        val newItem = QueuedDownloadItem(
+                            mediaUrl = info.url,
+                            format = format,
+                            title = info.title,
+                            quality = quality
+                        )
+                        _downloadQueue.value = _downloadQueue.value + newItem
+                        AppLogger.log("QUEUE_ADD", "Toplu kuyruğa eklendi: ${info.title}")
+                    } catch (e: Exception) {
+                        AppLogger.log("QUEUE_ERR", "Kuyruk URL çözümlenemedi: $extraUrl", e)
+                    }
+                }
+            }
+        }
+
+        // Eğer halihazırda aktif bir indirme sürüyorsa yeni isteği kuyruğa ekle
+        if (activeDownloadJob?.isActive == true) {
+            val queuedItem = QueuedDownloadItem(mediaUrl, format, title, quality)
+            _downloadQueue.value = _downloadQueue.value + queuedItem
+            _queueFeedbackMessage.value = "Kuyruğa eklendi: $title. Sırada ${_downloadQueue.value.size} medya bekliyor."
+            AppLogger.log("QUEUE_ADD", "Aktif indirme sırasında kuyruğa eklendi: $title")
+            return
+        }
+
+        executeDownloadItem(appContext, QueuedDownloadItem(mediaUrl, format, title, quality))
+    }
+
+    private fun executeDownloadItem(appContext: Context, item: QueuedDownloadItem) {
+        val mediaUrl = item.mediaUrl
+        val format = item.format
+        val title = item.title
+        val quality = item.quality
+
         lastDownloadParams = LastDownloadParams(mediaUrl, format, title, quality)
         val formatLabel = if (!quality.isNullOrBlank()) "${format.uppercase()} ($quality)" else format.uppercase()
 
@@ -250,46 +323,120 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             downloadId = 0L
         )
 
-        val appContext = getApplication<Application>().applicationContext
+        DownloadNotificationHelper.showProgressNotification(
+            context = appContext,
+            title = title,
+            format = formatLabel,
+            progress = 0,
+            isIndeterminate = true,
+            queueRemaining = _downloadQueue.value.size
+        )
+
         AppLogger.log("DOWNLOAD_START", "İndirme başlatıldı: [$formatLabel] $title")
 
-        viewModelScope.launch {
-            val result = DownloadHelper.downloadMediaDirect(
-                context = appContext,
-                mediaUrl = mediaUrl,
-                format = format,
-                title = title,
-                quality = quality,
-                onProgress = { progress, downloaded, total ->
-                    _uiState.value = UiState.Downloading(
+        activeDownloadJob = viewModelScope.launch {
+            try {
+                val result = DownloadHelper.downloadMediaDirect(
+                    context = appContext,
+                    mediaUrl = mediaUrl,
+                    format = format,
+                    title = title,
+                    quality = quality,
+                    onProgress = { progress, downloaded, total ->
+                        _uiState.value = UiState.Downloading(
+                            title = title,
+                            format = formatLabel,
+                            progress = progress,
+                            downloadedBytes = downloaded,
+                            totalBytes = total,
+                            downloadId = 0L
+                        )
+                        DownloadNotificationHelper.showProgressNotification(
+                            context = appContext,
+                            title = title,
+                            format = formatLabel,
+                            progress = progress,
+                            isIndeterminate = total <= 0L && downloaded <= 0L,
+                            queueRemaining = _downloadQueue.value.size
+                        )
+                    }
+                )
+
+                if (result.isSuccess) {
+                    val savedFile = result.getOrNull()
+                    AppLogger.log("DOWNLOAD_OK", "İndirme tamamlandı: ${savedFile?.name} (${savedFile?.length()} bayt)")
+                    DownloadNotificationHelper.showCompletedNotification(
+                        context = appContext,
                         title = title,
-                        format = formatLabel,
-                        progress = progress,
-                        downloadedBytes = downloaded,
-                        totalBytes = total,
-                        downloadId = 0L
+                        format = formatLabel
+                    )
+
+                    // Kuyrukta bekleyen başka medya varsa otomatik olarak sıradakine geç
+                    val currentQueue = _downloadQueue.value
+                    if (currentQueue.isNotEmpty()) {
+                        val nextItem = currentQueue.first()
+                        _downloadQueue.value = currentQueue.drop(1)
+                        _queueFeedbackMessage.value = "$title tamamlandı. Sıradaki indiriliyor: ${nextItem.title}"
+                        executeDownloadItem(appContext, nextItem)
+                    } else {
+                        _uiState.value = UiState.DownloadCompleted(
+                            title = title,
+                            format = formatLabel
+                        )
+                    }
+                } else {
+                    DownloadNotificationHelper.cancelProgressNotification(appContext)
+                    val ex = result.exceptionOrNull()
+                    AppLogger.log("DOWNLOAD_ERR", "İndirme başarısız: [$formatLabel] $title", ex)
+                    val err = ex?.localizedMessage
+                        ?: "İndirme işlemi tamamlanamadı. Bağlantınızı kontrol edip yeniden deneyebilirsiniz."
+                    _uiState.value = UiState.Error(
+                        message = err,
+                        canRetry = true
                     )
                 }
-            )
-
-            if (result.isSuccess) {
-                val savedFile = result.getOrNull()
-                AppLogger.log("DOWNLOAD_OK", "İndirme tamamlandı: ${savedFile?.name} (${savedFile?.length()} bayt)")
-                _uiState.value = UiState.DownloadCompleted(
-                    title = title,
-                    format = formatLabel
-                )
-            } else {
-                val ex = result.exceptionOrNull()
-                AppLogger.log("DOWNLOAD_ERR", "İndirme başarısız: [$formatLabel] $title", ex)
-                val err = ex?.localizedMessage
-                    ?: "İndirme işlemi tamamlanamadı. Bağlantınızı kontrol edip yeniden deneyebilirsiniz."
-                _uiState.value = UiState.Error(
-                    message = err,
-                    canRetry = true
-                )
+            } catch (_: CancellationException) {
+                DownloadNotificationHelper.cancelProgressNotification(appContext)
+                AppLogger.log("DOWNLOAD_CANCEL", "İndirme kullanıcı tarafından iptal edildi: $title")
             }
         }
+    }
+
+    /**
+     * Aktif indirmeyi iptal eder. Kuyrukta bekleyen başka medya varsa sıradakine geçer.
+     */
+    fun cancelActiveDownload() {
+        val appContext = getApplication<Application>().applicationContext
+        DownloadHelper.cancelCurrentCall()
+        activeDownloadJob?.cancel()
+        activeDownloadJob = null
+        DownloadNotificationHelper.cancelProgressNotification(appContext)
+
+        val currentQueue = _downloadQueue.value
+        if (currentQueue.isNotEmpty()) {
+            val nextItem = currentQueue.first()
+            _downloadQueue.value = currentQueue.drop(1)
+            _queueFeedbackMessage.value = "Mevcut indirme iptal edildi. Sıradakine geçiliyor: ${nextItem.title}"
+            executeDownloadItem(appContext, nextItem)
+        } else {
+            _uiState.value = UiState.Idle
+            _queueFeedbackMessage.value = "İndirme iptal edildi."
+        }
+    }
+
+    /**
+     * Hem aktif indirmeyi hem de kuyrukta bekleyen tüm medyaları iptal eder.
+     */
+    fun clearQueueAndCancelAll() {
+        val appContext = getApplication<Application>().applicationContext
+        pendingBatchUrls.clear()
+        _downloadQueue.value = emptyList()
+        DownloadHelper.cancelCurrentCall()
+        activeDownloadJob?.cancel()
+        activeDownloadJob = null
+        DownloadNotificationHelper.cancelProgressNotification(appContext)
+        _uiState.value = UiState.Idle
+        _queueFeedbackMessage.value = "Aktif indirme ve tüm kuyruk iptal edildi."
     }
 
     /**
@@ -419,10 +566,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun extractUrlFromText(text: String): String? {
+        return extractAllUrlsFromText(text).firstOrNull()
+    }
+
+    private fun extractAllUrlsFromText(text: String): List<String> {
         val urlRegex = "https?://[\\w\\d:#@%/;$()~_?\\+-=\\\\.&]+"
         val pattern = Pattern.compile(urlRegex, Pattern.CASE_INSENSITIVE)
         val matcher = pattern.matcher(text)
-        return if (matcher.find()) matcher.group(0) else null
+        val list = mutableListOf<String>()
+        while (matcher.find()) {
+            matcher.group(0)?.let { found ->
+                if (!list.contains(found)) {
+                    list.add(found)
+                }
+            }
+        }
+        return list
     }
 
     private fun isSupportedPlatform(url: String): Boolean {
