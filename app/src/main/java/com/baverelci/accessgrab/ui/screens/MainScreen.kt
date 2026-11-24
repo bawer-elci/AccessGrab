@@ -261,6 +261,10 @@ fun DownloaderContent(
             onUrlChanged = { viewModel.onUrlChanged(it) },
             onClearInput = { viewModel.clearInput() },
             onFetchMedia = { viewModel.fetchMediaInfo() },
+            onPasteAndFetch = { pasted ->
+                viewModel.onUrlChanged(pasted)
+                viewModel.fetchMediaInfo(pasted)
+            },
             isLoading = uiState is UiState.Loading
         )
 
@@ -325,6 +329,17 @@ fun DownloaderContent(
                         format = selectedFormat,
                         title = media.title,
                         quality = selectedQuality
+                    )
+                },
+                onQuickDownload = { fmt, qual ->
+                    viewModel.selectFormat(fmt)
+                    viewModel.selectQuality(qual)
+                    viewModel.startTrackedDownload(
+                        context = context,
+                        mediaUrl = media.url,
+                        format = fmt,
+                        title = media.title,
+                        quality = qual
                     )
                 }
             )

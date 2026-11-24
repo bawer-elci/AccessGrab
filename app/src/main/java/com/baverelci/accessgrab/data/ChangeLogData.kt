@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.5.3",
+            version = "v1.5.4",
             date = "24 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "İndir Sekmesi TalkBack Eylemler (Custom Actions) Entegrasyonu: Medya bilgisi kartı üzerinde Eylemler menüsüyle doğrudan 1080p/720p/480p/360p MP4 Video veya 320/192/128 kbps MP3 Ses olarak anında indirme başlatma.",
+                "Hızlı Bağlantı Kutusu Eylemleri: URL giriş kutusu üzerinde Eylemler menüsüyle tek adımda 'Panodan Yapıştır ve Hemen İncele', 'Panodan Yapıştır' ve 'Metni Temizle' desteği.",
+                "Pano, İndirme Tamamlandı ve Hata Kartı Eylemleri: Görsel ikonlar ve butonlar ekranda korunurken TalkBack Eylemler menüsüyle tek dokunuşla işlem yapabilme."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.5.3",
+            date = "24 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "TalkBack Eylemler (Custom Actions) Menüsü: Kütüphane sekmesinde her medya dosyası tek bir öğe haline getirildi. Dosya üzerinde TalkBack Eylemler menüsüyle doğrudan Oynat, Paylaş ve Sil işlemlerine hızlı erişim sağlandı.",
                 "4 Kat Daha Hızlı Liste Gezinmesi: Görsel butonlar ekranda korunurken TalkBack taramasından gizlendi; sağa/sola kaydırmada butonlara takılmadan doğrudan dosyalar arasında geçiş yapılabilir.",

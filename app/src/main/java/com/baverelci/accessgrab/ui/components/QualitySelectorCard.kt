@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
@@ -41,13 +42,18 @@ fun QualitySelectorCard(
     onFormatSelected: (String) -> Unit,
     onQualitySelected: (String) -> Unit,
     onStartDownload: () -> Unit,
+    onQuickDownload: ((format: String, quality: String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        MediaInfoCard(media = media)
+        MediaInfoCard(
+            media = media,
+            onQuickDownload = onQuickDownload,
+            onDefaultDownload = onStartDownload
+        )
 
         Text(
             text = "Format ve Kalite Seçimi",
@@ -127,7 +133,9 @@ fun QualitySelectorCard(
                                 }
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .clearAndSetSemantics { },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
@@ -177,7 +185,9 @@ fun QualitySelectorCard(
                                 }
                         ) {
                             Row(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .clearAndSetSemantics { },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(

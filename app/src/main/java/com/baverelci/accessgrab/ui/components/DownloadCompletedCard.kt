@@ -21,9 +21,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
@@ -40,15 +46,28 @@ fun DownloadCompletedCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)),
         modifier = modifier
             .fillMaxWidth()
+            .clickable(onClick = onOpenFile)
             .semantics {
                 this.liveRegion = LiveRegionMode.Polite
                 this.contentDescription = "İndirme tamamlandı! $title, $format."
+                this.role = Role.Button
+                this.customActions = listOf(
+                    CustomAccessibilityAction("Kütüphanede Gör") {
+                        onOpenFile()
+                        true
+                    },
+                    CustomAccessibilityAction("Yeni Medya İndir") {
+                        onNewMedia()
+                        true
+                    }
+                )
             }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(20.dp)
+                .clearAndSetSemantics { },
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

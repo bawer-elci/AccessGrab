@@ -20,7 +20,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
@@ -30,10 +33,16 @@ fun UrlInputCard(
     onUrlChanged: (String) -> Unit,
     onClearInput: () -> Unit,
     onFetchMedia: () -> Unit,
+    onPasteAndFetch: ((String) -> Unit)? = null,
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+
+    fun readClipboardText(): String {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        return clipboard?.primaryClip?.getItemAt(0)?.text?.toString()?.trim() ?: ""
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         OutlinedTextField(
@@ -50,14 +59,11 @@ fun UrlInputCard(
                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             ),
             trailingIcon = {
-                Row {
+                // Görsel ikonlar gören kullanıcılar için kutunun sağında korunur;
+                // TalkBack kullanıcıları bu işlemlere doğrudan kutunun Eylemler menüsünden erişir.
+                Row(modifier = Modifier.clearAndSetSemantics { }) {
                     if (urlInput.isNotEmpty()) {
-                        IconButton(
-                            onClick = onClearInput,
-                            modifier = Modifier.semantics {
-                                this.contentDescription = "Metin alanını temizle düğmesi"
-                            }
-                        ) {
+                        IconButton(onClick = onClearInput) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = null,
@@ -67,14 +73,10 @@ fun UrlInputCard(
                     }
                     IconButton(
                         onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                            val clip = clipboard?.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+                            val clip = readClipboardText()
                             if (clip.isNotBlank()) {
                                 onUrlChanged(clip)
                             }
-                        },
-                        modifier = Modifier.semantics {
-                            this.contentDescription = "Panodan yapıştır düğmesi"
                         }
                     ) {
                         Icon(
@@ -89,6 +91,45 @@ fun UrlInputCard(
                 .fillMaxWidth()
                 .semantics {
                     this.contentDescription = "Sosyal medya bağlantısı giriş kutusu. ${if (urlInput.isEmpty()) "Şu an boş" else "İçerik: $urlInput"}"
+                    val actions = mutableListOf<CustomAccessibilityAction>()
+                    actions.add(
+                        CustomAccessibilityAction("Panodan Yapıştır ve Hemen İncele") {
+                            val clip = readClipboardText()
+                            if (clip.isNotBlank()) {
+                                if (onPasteAndFetch != null) {
+                                    onPasteAndFetch(clip)
+                                } else {
+                                    onUrlChanged(clip)
+                                    onFetchMedia()
+                                }
+                            }
+                            true
+                        }
+                    )
+                    actions.add(
+                        CustomAccessibilityAction("Panodan Yapıştır") {
+                            val clip = readClipboardText()
+                            if (clip.isNotBlank()) {
+                                onUrlChanged(clip)
+                            }
+                            true
+                        }
+                    )
+                    if (urlInput.isNotBlank()) {
+                        actions.add(
+                            CustomAccessibilityAction("Medyayı İncele") {
+                                onFetchMedia()
+                                true
+                            }
+                        )
+                        actions.add(
+                            CustomAccessibilityAction("Metni Temizle") {
+                                onClearInput()
+                                true
+                            }
+                        )
+                    }
+                    this.customActions = actions
                 }
         )
 

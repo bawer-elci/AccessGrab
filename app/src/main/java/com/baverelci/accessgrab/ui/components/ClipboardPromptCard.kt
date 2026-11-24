@@ -1,5 +1,6 @@
 package com.baverelci.accessgrab.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +15,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
@@ -30,11 +36,27 @@ fun ClipboardPromptCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = modifier
             .fillMaxWidth()
-            .semantics(mergeDescendants = true) {
-                this.contentDescription = "Panoda medya bağlantısı algılandı: $url. Kullanmak veya kapatmak için düğmeleri seçebilirsiniz."
+            .clickable(onClick = onUseUrl)
+            .semantics {
+                this.contentDescription = "Panoda medya bağlantısı algılandı: $url."
+                this.role = Role.Button
+                this.customActions = listOf(
+                    CustomAccessibilityAction("Bu Bağlantıyı Kullan") {
+                        onUseUrl()
+                        true
+                    },
+                    CustomAccessibilityAction("Öneriyi Kapat") {
+                        onDismiss()
+                        true
+                    }
+                )
             }
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(14.dp)
+                .clearAndSetSemantics { }
+        ) {
             Text(
                 text = "Panoda medya bağlantısı algılandı:",
                 style = MaterialTheme.typography.titleMedium,

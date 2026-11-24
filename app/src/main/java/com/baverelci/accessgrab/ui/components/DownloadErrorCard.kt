@@ -21,8 +21,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -43,12 +46,33 @@ fun DownloadErrorCard(
             .semantics {
                 this.liveRegion = LiveRegionMode.Assertive
                 this.contentDescription = "Hata mesajı: $errorMessage"
+                val actions = mutableListOf<CustomAccessibilityAction>()
+                if (canRetry && onRetry != null) {
+                    actions.add(
+                        CustomAccessibilityAction("Yeniden Dene") {
+                            onRetry()
+                            true
+                        }
+                    )
+                }
+                if (onDismiss != null) {
+                    actions.add(
+                        CustomAccessibilityAction("Hata Uyarısını Kapat") {
+                            onDismiss()
+                            true
+                        }
+                    )
+                }
+                if (actions.isNotEmpty()) {
+                    this.customActions = actions
+                }
             }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
+                .clearAndSetSemantics { }
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(

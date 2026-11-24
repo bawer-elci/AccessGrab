@@ -1,8 +1,7 @@
 package com.baverelci.accessgrab.ui.components
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,8 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -36,6 +39,8 @@ import com.baverelci.accessgrab.network.ExtractResponse
 @Composable
 fun MediaInfoCard(
     media: ExtractResponse,
+    onQuickDownload: ((format: String, quality: String) -> Unit)? = null,
+    onDefaultDownload: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val accessibleSummary = "${media.platform} medyası: ${media.title}. Yükleyen: ${media.author}. Süre: ${media.durationFormatted}."
@@ -47,19 +52,59 @@ fun MediaInfoCard(
         ),
         modifier = modifier
             .fillMaxWidth()
-            .semantics(mergeDescendants = true) {
+            .then(
+                if (onDefaultDownload != null) Modifier.clickable(onClick = onDefaultDownload)
+                else Modifier
+            )
+            .semantics {
                 this.contentDescription = accessibleSummary
+                if (onDefaultDownload != null) {
+                    this.role = Role.Button
+                }
+                if (onQuickDownload != null) {
+                    this.customActions = listOf(
+                        CustomAccessibilityAction("MP4 Video İndir (720p Standart HD)") {
+                            onQuickDownload("mp4", "720")
+                            true
+                        },
+                        CustomAccessibilityAction("MP4 Video İndir (1080p Tam HD)") {
+                            onQuickDownload("mp4", "1080")
+                            true
+                        },
+                        CustomAccessibilityAction("MP4 Video İndir (480p SD)") {
+                            onQuickDownload("mp4", "480")
+                            true
+                        },
+                        CustomAccessibilityAction("MP4 Video İndir (360p Düşük Boyut)") {
+                            onQuickDownload("mp4", "360")
+                            true
+                        },
+                        CustomAccessibilityAction("MP3 Ses İndir (192 kbps Standart)") {
+                            onQuickDownload("mp3", "192")
+                            true
+                        },
+                        CustomAccessibilityAction("MP3 Ses İndir (320 kbps Yüksek Kalite)") {
+                            onQuickDownload("mp3", "320")
+                            true
+                        },
+                        CustomAccessibilityAction("MP3 Ses İndir (128 kbps Tasarruf)") {
+                            onQuickDownload("mp3", "128")
+                            true
+                        }
+                    )
+                }
             }
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .padding(16.dp)
+                .clearAndSetSemantics { }
         ) {
             // Başlık
             Text(
                 text = media.title,
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.semantics { heading() }
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -71,7 +116,7 @@ fun MediaInfoCard(
                 if (media.thumbnail.isNotBlank()) {
                     AsyncImage(
                         model = media.thumbnail,
-                        contentDescription = "Medya önizleme görseli",
+                        contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(80.dp)
