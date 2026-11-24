@@ -54,6 +54,14 @@ fun AboutScreen(
     val context = LocalContext.current
     var showChangeLog by remember { mutableStateOf(false) }
 
+    val versionName = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.5.0"
+        } catch (_: Exception) {
+            "1.5.0"
+        }
+    }
+
     // Sürüm Notları (ChangeLog) Diyaloğu
     if (showChangeLog) {
         ChangeLogDialog(onDismiss = { showChangeLog = false })
@@ -86,7 +94,7 @@ fun AboutScreen(
                     modifier = Modifier.semantics { heading() }
                 )
                 Text(
-                    text = "Sürüm 1.4.1 (Erişilebilir Yapı)",
+                    text = "Sürüm $versionName (Erişilebilir Yapı)",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )

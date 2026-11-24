@@ -40,8 +40,15 @@ sealed class UiState {
         val format: String
     ) : UiState()
     data class DownloadInitiated(val message: String, val format: String) : UiState()
-    data class Error(val message: String) : UiState()
+    data class Error(val message: String, val canRetry: Boolean = false) : UiState()
 }
+
+data class LastDownloadParams(
+    val mediaUrl: String,
+    val format: String,
+    val title: String,
+    val quality: String? = null
+)
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -63,6 +70,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     var isWaitingForInstallPermission = false
+
+    private var lastDownloadParams: LastDownloadParams? = null
 
     val prefs = PreferencesManager(application)
 
@@ -203,7 +212,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 android.util.Log.e("AccessGrab", "Extract error: ${e.message}", e)
                 val errorMsg = e.localizedMessage ?: "Sunucuya bağlanılamadı. Lütfen tekrar deneyin."
-                _uiState.value = UiState.Error("Hata: $errorMsg")
+                _uiState.value = UiState.Error("Hata: $errorMsg", canRetry = true)
             }
         }
     }
@@ -215,6 +224,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         title: String,
         quality: String? = null
     ) {
+        lastDownloadParams = LastDownloadParams(mediaUrl, format, title, quality)
         val downloadId = DownloadHelper.startDownload(context, mediaUrl, format, title, quality)
         val formatLabel = if (!quality.isNullOrBlank()) "${format.uppercase()} ($quality)" else format.uppercase()
         _uiState.value = UiState.Downloading(
@@ -258,7 +268,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             DownloadManager.STATUS_FAILED -> {
                                 isRunning = false
                                 withContext(Dispatchers.Main) {
-                                    _uiState.value = UiState.Error("İndirme işlemi tamamlanamadı.")
+                                    _uiState.value = UiState.Error(
+                                        message = "İndirme işlemi tamamlanamadı. Bağlantınızı kontrol edip yeniden deneyebilirsiniz.",
+                                        canRetry = true
+                                    )
                                 }
                             }
                             else -> {
@@ -285,6 +298,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                 delay(300)
             }
+        }
+    }
+
+    /**
+     * Akıllı Yeniden Deneme (Smart Retry):
+     * Hata alan son indirmeyi veya son medya getirme isteğini aynı parametrelerle tekrar tetikler.
+     */
+    fun retryLastAction(context: Context) {
+        val params = lastDownloadParams
+        if (params != null) {
+            startTrackedDownload(
+                context = context,
+                mediaUrl = params.mediaUrl,
+                format = params.format,
+                title = params.title,
+                quality = params.quality
+            )
+        } else if (_urlInput.value.isNotBlank()) {
+            fetchMediaInfo(_urlInput.value)
         }
     }
 

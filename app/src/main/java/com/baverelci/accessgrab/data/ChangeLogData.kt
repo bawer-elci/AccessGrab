@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
+            version = "v1.5.0",
+            date = "24 Kasım 2026",
+            isLatest = true,
+            highlights = listOf(
+                "Kütüphanem (İndirilen Dosyalar) Sekmesi: İndirilen tüm MP4 video ve MP3 ses dosyalarını uygulama içinden doğrudan listeleme, açma/oynatma, paylaşma ve silme.",
+                "Akıllı Yeniden Deneme (Smart Retry): Bağlantı kopması veya indirme hatalarında tek dokunuşla aynı kalite ve ayarlarla yeniden indirme.",
+                "Modüler ve Performanslı Mimari: Ekran bileşenleri modüler parçalara ayrılarak hem görsel akıcılık hem de TalkBack tepki hızı artırıldı.",
+                "Erişilebilir Dosya Yönetimi: Dosyaların boyutları, indirilme tarihleri ve formatları için detaylı ekran okuyucu seslendirmeleri."
+            )
+        ),
+        ReleaseLog(
             version = "v1.4.1",
             date = "22 Kasım 2026",
-            isLatest = true,
             highlights = listOf(
                 "Uygulama İçi Sürüm Notları (ChangeLog): Ayarlar ve Hakkında ekranlarından geçmiş tüm sürüm yeniliklerine erişebilme.",
                 "Video Çözünürlük Seçenekleri: 1080p (FHD), 720p (HD), 480p (SD) ve 360p arasında serbest seçim.",
