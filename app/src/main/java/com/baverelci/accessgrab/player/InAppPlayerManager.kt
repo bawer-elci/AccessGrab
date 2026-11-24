@@ -3,6 +3,7 @@ package com.baverelci.accessgrab.player
 import android.media.MediaPlayer
 import android.media.PlaybackParams
 import android.os.Build
+import android.view.SurfaceHolder
 import com.baverelci.accessgrab.data.AppLogger
 import com.baverelci.accessgrab.data.DownloadedMediaFile
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +21,9 @@ data class PlayerState(
     val isPlaying: Boolean = false,
     val currentPositionMs: Int = 0,
     val durationMs: Int = 0,
-    val playbackSpeed: Float = 1.0f
+    val playbackSpeed: Float = 1.0f,
+    val videoWidth: Int = 0,
+    val videoHeight: Int = 0
 ) {
     val isActive: Boolean get() = currentFile != null
     val formattedPosition: String get() = formatTimeMs(currentPositionMs)
@@ -40,6 +43,7 @@ object InAppPlayerManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var mediaPlayer: MediaPlayer? = null
+    private var activeSurfaceHolder: SurfaceHolder? = null
     private var progressJob: Job? = null
     private var playlist: List<DownloadedMediaFile> = emptyList()
 
@@ -48,6 +52,25 @@ object InAppPlayerManager {
 
     private val availableSpeeds = listOf(1.0f, 1.25f, 1.5f, 2.0f)
 
+    /**
+     * Video görüntüsünün ekrandaki pencereye çizilmesi için SurfaceHolder bağlar.
+     */
+    fun attachSurfaceHolder(holder: SurfaceHolder?) {
+        activeSurfaceHolder = holder
+        try {
+            mediaPlayer?.setDisplay(holder)
+        } catch (_: Exception) {}
+    }
+
+    fun detachSurfaceHolder(holder: SurfaceHolder?) {
+        if (activeSurfaceHolder == holder) {
+            activeSurfaceHolder = null
+            try {
+                mediaPlayer?.setDisplay(null)
+            } catch (_: Exception) {}
+        }
+    }
+
     fun playMedia(target: DownloadedMediaFile, currentList: List<DownloadedMediaFile> = emptyList()) {
         if (currentList.isNotEmpty()) {
             playlist = currentList
@@ -55,31 +78,52 @@ object InAppPlayerManager {
             playlist = listOf(target)
         }
 
-        // Aynı dosya zaten yüklüyse oynat/duraklat geçişi yap
-        if (_state.value.currentFile?.file?.absolutePath == target.file.absolutePath && mediaPlayer != null) {
-            togglePlayPause()
-            return
-        }
-
         stopInternal()
 
+        val currentSpeed = _state.value.playbackSpeed
+        // Pencerenin hemen açılması için state'i ilk anda aktif hale getir
+        _state.value = PlayerState(
+            currentFile = target,
+            isPlaying = false,
+            currentPositionMs = 0,
+            durationMs = 0,
+            playbackSpeed = currentSpeed
+        )
+
         try {
-            val currentSpeed = _state.value.playbackSpeed
             val mp = MediaPlayer().apply {
                 setDataSource(target.file.absolutePath)
+                activeSurfaceHolder?.let { holder ->
+                    try {
+                        setDisplay(holder)
+                    } catch (_: Exception) {}
+                }
+                setOnVideoSizeChangedListener { _, width, height ->
+                    _state.value = _state.value.copy(
+                        videoWidth = width,
+                        videoHeight = height
+                    )
+                }
                 setOnPreparedListener { player ->
+                    activeSurfaceHolder?.let { holder ->
+                        try {
+                            player.setDisplay(holder)
+                        } catch (_: Exception) {}
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         try {
                             player.playbackParams = PlaybackParams().setSpeed(currentSpeed)
                         } catch (_: Exception) {}
                     }
                     player.start()
-                    _state.value = PlayerState(
+                    _state.value = _state.value.copy(
                         currentFile = target,
                         isPlaying = true,
                         currentPositionMs = 0,
                         durationMs = player.duration.coerceAtLeast(0),
-                        playbackSpeed = currentSpeed
+                        playbackSpeed = currentSpeed,
+                        videoWidth = player.videoWidth,
+                        videoHeight = player.videoHeight
                     )
                     startProgressTicker()
                 }
@@ -94,7 +138,7 @@ object InAppPlayerManager {
                 prepareAsync()
             }
             mediaPlayer = mp
-            AppLogger.log("PLAYER_START", "Uygulama içi oynatıcı başlatıldı: ${target.name}")
+            AppLogger.log("PLAYER_START", "Oynatıcı penceresi başlatıldı: ${target.name}")
         } catch (e: Exception) {
             AppLogger.log("PLAYER_ERR", "Medya açılamadı: ${target.name}", e)
             stop()
@@ -187,6 +231,9 @@ object InAppPlayerManager {
         progressJob?.cancel()
         progressJob = null
         try {
+            mediaPlayer?.setDisplay(null)
+        } catch (_: Exception) {}
+        try {
             mediaPlayer?.stop()
         } catch (_: Exception) {}
         try {
@@ -209,7 +256,7 @@ object InAppPlayerManager {
                         )
                     }
                 } catch (_: Exception) {}
-                delay(500)
+                delay(400)
             }
         }
     }

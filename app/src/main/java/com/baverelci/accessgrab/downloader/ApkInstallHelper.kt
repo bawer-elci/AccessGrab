@@ -94,7 +94,13 @@ object ApkInstallHelper {
         onProgress: (Int) -> Unit = {}
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder().url(apkUrl).build()
+            val separator = if (apkUrl.contains("?")) "&" else "?"
+            val freshUrl = "${apkUrl}${separator}t=${System.currentTimeMillis()}"
+            val request = Request.Builder()
+                .url(freshUrl)
+                .header("Cache-Control", "no-cache, no-store, must-revalidate")
+                .header("Pragma", "no-cache")
+                .build()
             val response = client.newCall(request).execute()
 
             if (!response.isSuccessful) {
@@ -123,6 +129,9 @@ object ApkInstallHelper {
                         }
                     }
                     output.flush()
+                    try {
+                        output.fd.sync()
+                    } catch (_: Exception) {}
                 }
             }
 

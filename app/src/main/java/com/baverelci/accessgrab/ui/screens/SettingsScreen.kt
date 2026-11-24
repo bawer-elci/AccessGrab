@@ -58,11 +58,13 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
+import com.baverelci.accessgrab.data.ChangeLogData
 import com.baverelci.accessgrab.downloader.ApkInstallHelper
 import com.baverelci.accessgrab.ui.components.AccessibleButton
 import com.baverelci.accessgrab.ui.components.ChangeLogDialog
 import com.baverelci.accessgrab.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 @Composable
@@ -191,6 +193,8 @@ fun SettingsScreen(
                                     AccessibilityHelper.announce(view, "İndirme tamamlandı, sistem paket yükleyici açılıyor.")
                                     val installResult = ApkInstallHelper.installApk(context, apkFile)
                                     if (installResult.isSuccess) {
+                                        // Sistem paket yükleyicisinin ön plana tam geçmesi için kısa bekle, böylece ilk seferde kurulum ekranı kapanmasın
+                                        delay(700)
                                         viewModel.dismissUpdateDialog()
                                     } else {
                                         AccessibilityHelper.announce(
@@ -227,24 +231,47 @@ fun SettingsScreen(
         )
     }
 
-    // Güncelleme Olmadığında Açılan Erişilebilir Bilgilendirme Penceresi
+    // Güncelleme Olmadığında Açılan Erişilebilir Bilgilendirme ve Özellik Açıklaması Penceresi
     val isUpToDateDialogVisible by viewModel.isUpToDateDialogVisible.collectAsState()
+    val latestChangelogText by viewModel.latestChangelogText.collectAsState()
     if (isUpToDateDialogVisible) {
+        val currentHighlights = latestChangelogText?.takeIf { it.isNotBlank() }
+            ?: ChangeLogData.releases.firstOrNull()?.highlights?.joinToString("\n") { "• $it" }
+            ?: ""
+
         AlertDialog(
             onDismissRequest = { viewModel.dismissUpToDateDialog() },
             title = {
                 Text(
-                    text = "Uygulamanız Güncel",
+                    text = "Uygulamanız Güncel (v${viewModel.currentVersionName})",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.primary
                 )
             },
             text = {
-                Text(
-                    text = "Şu anda yeni bir sürüm mevcut değil. AccessGrab'in en güncel sürümünü (v${viewModel.currentVersionName}) kullanıyorsunuz.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "AccessGrab'in en güncel sürümünü (v${viewModel.currentVersionName}) kullanıyorsunuz.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (currentHighlights.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Bu Sürümdeki Güncelleme Özellikleri:",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                        Text(
+                            text = currentHighlights,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
             },
             confirmButton = {
                 AccessibleButton(

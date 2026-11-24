@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.7.0",
+            version = "v1.7.1",
             date = "25 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Görüntülü Video & Ses Oynatıcı Penceresi: Kütüphane'de bir dosyaya tıklandığında açılan tam boy pencerede hem gerçek video görüntüsü (SurfaceView) hem de büyük Duraklat/Oynat, 10 Sn İleri, 10 Sn Geri, Hızlandır (1x/1.25x/1.5x/2x), Önceki/Sonraki ve Kapat düğmeleri.",
+                "Tek Dokunuşla Kesintisiz Güncelleme Kurulumu: Güncelleme indirildiğinde kurulum ekranının ilk seferde kapanmadan doğrudan açılması ve önbelleksiz APK indirme garantisi.",
+                "Her Güncelleme Kontrolünde Özellik Açıklaması: 'Güncellemeleri Denetle'ye her basıldığında hem yeni sürümde hem de güncel sürümde özellik açıklamalarının ekranda gösterilmesi ve TalkBack ile seslendirilmesi."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.7.0",
+            date = "25 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Uygulama İçi %100 Erişilebilir Medya & Podcast Oynatıcı: Kütüphane sekmesinde harici uygulamaya gerek kalmadan 10 sn ileri/geri sarma, oynatma hızı seçimi (1x, 1.25x, 1.5x, 2x), arka planda sırayla çalma ve TalkBack Eylemler menüsü desteği.",
                 "İndirmeyi İptal Et & Canlı Bildirim Çubuğu Desteği: Devam eden indirmeyi anında iptal edebilme ve uygulama arka plandayken bildirim çubuğunda canlı indirme yüzdesi takibi.",

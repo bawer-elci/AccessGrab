@@ -145,6 +145,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isUpToDateDialogVisible = MutableStateFlow(false)
     val isUpToDateDialogVisible: StateFlow<Boolean> = _isUpToDateDialogVisible.asStateFlow()
 
+    private val _latestChangelogText = MutableStateFlow<String?>(null)
+    val latestChangelogText: StateFlow<String?> = _latestChangelogText.asStateFlow()
+
     private val _updateErrorMessage = MutableStateFlow<String?>(null)
     val updateErrorMessage: StateFlow<String?> = _updateErrorMessage.asStateFlow()
 
@@ -477,6 +480,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         _isCheckingUpdate.value = true
         if (isManual) {
+            _updateInfo.value = null
+            _isUpToDateDialogVisible.value = false
             _updateStatusMessage.value = "Güncellemeler denetleniyor…"
             _updateErrorMessage.value = null
         }
@@ -485,10 +490,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val info = AccessGrabApi.service.getLatestVersion()
                 _isCheckingUpdate.value = false
+                _latestChangelogText.value = info.changelog
 
                 if (info.latestVersionCode > currentVersionCode) {
                     _updateInfo.value = info
-                    _updateStatusMessage.value = "Yeni bir sürüm mevcut: v${info.latestVersionName}"
+                    _updateStatusMessage.value = "Yeni sürüm mevcut: v${info.latestVersionName}. Güncelleme özellikleri: ${info.changelog}"
 
                     // Bildirim gönder
                     val app = getApplication<Application>()
@@ -502,7 +508,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else {
                     _updateInfo.value = null
-                    _updateStatusMessage.value = "Şu anda yeni bir sürüm mevcut değil."
+                    _updateStatusMessage.value = "Uygulamanız güncel: Sürüm v${currentVersionName}. Bu sürümün özellikleri: ${info.changelog}"
                     if (isManual) {
                         _isUpToDateDialogVisible.value = true
                     }
