@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
@@ -111,12 +112,12 @@ fun LibraryScreen(
             confirmButton = {
                 AccessibleButton(
                     text = "Evet, Sil",
-                    contentDesc = "${target.name} dosyasını kalıcı olarak sil düğmesi",
+                    contentDesc = "${target.name} dosyasını kalıcı olarak sil",
                     icon = Icons.Default.Delete,
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError,
                     onClick = {
-                        val deleted = MediaFileManager.deleteMediaFile(target.file)
+                        val deleted = MediaFileManager.deleteMediaFile(target.file, context)
                         if (deleted) {
                             if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
                             feedbackMessage = "${target.name} dosyası silindi."
@@ -181,7 +182,8 @@ fun LibraryScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(24.dp)
+                        .clearAndSetSemantics { },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -280,7 +282,11 @@ fun MediaFileItemCard(
                     modifier = Modifier.size(32.dp)
                 )
 
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clearAndSetSemantics { }
+                ) {
                     Text(
                         text = item.name,
                         style = MaterialTheme.typography.titleMedium,

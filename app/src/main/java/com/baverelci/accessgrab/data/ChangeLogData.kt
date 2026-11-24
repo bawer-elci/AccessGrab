@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.5.1",
+            version = "v1.5.2",
             date = "24 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "TalkBack Çift Okuma Düzeltmesi: Butonlarda hem erişilebilirlik açıklamasının hem de buton metninin ('sil, Sil' gibi) üst üste iki kez okunması hatası giderildi.",
+                "Temiz Dosya İsimlendirmesi: Android sisteminin dosya adlarının başına eklediği '.trashed-numara-' ön ekleri otomatik temizlenerek yalnızca gerçek medya başlığının okunması sağlandı.",
+                "Kütüphane Ekranı Yerleşim ve Otomatik Senkronizasyon: İndirilen dosyaların anında ve tam ekran listelenmesi optimize edildi."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.5.1",
+            date = "24 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Kütüphane Ekranı Yerleşim ve Görünürlük Düzeltmesi: İndirilen dosyaların listede görünmesini engelleyen başlık/buton genişlik çakışması giderildi.",
                 "Tam Otomatik Kütüphane Senkronizasyonu: Gereksiz manuel yenileme butonu kaldırılarak indirilen tüm medya dosyalarının anında otomatik listelenmesi sağlandı.",

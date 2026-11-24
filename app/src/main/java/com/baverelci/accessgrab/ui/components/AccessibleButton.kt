@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -57,8 +58,10 @@ fun AccessibleButton(
                 this.role = Role.Button
             }
     ) {
+        // İç metin semantiğini temizle ki TalkBack hem contentDesc'i hem de buton yazısını ("sil, Sil" gibi) iki kez üst üste okumasın
         Row(
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clearAndSetSemantics { }
         ) {
             if (icon != null) {
                 Icon(

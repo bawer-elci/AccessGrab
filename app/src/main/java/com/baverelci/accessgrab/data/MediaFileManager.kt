@@ -24,6 +24,19 @@ data class DownloadedMediaFile(
 
 object MediaFileManager {
 
+    private val TRASHED_PREFIX_REGEX = Regex("^\\.?trashed-(\\d+-)?", RegexOption.IGNORE_CASE)
+
+    /**
+     * Android MediaStore çöp kutusu ön eklerini (.trashed-1766589123- vb.) temizleyerek
+     * ekran okuyucu ve görsel arayüz için saf medya başlığını döndürür.
+     */
+    fun cleanDisplayName(rawNameWithoutExt: String): String {
+        return rawNameWithoutExt
+            .replace(TRASHED_PREFIX_REGEX, "")
+            .trim()
+            .ifEmpty { "İndirilen Medya" }
+    }
+
     fun getAccessGrabDirectory(): File {
         val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         return File(downloadsDir, "AccessGrab")
@@ -82,9 +95,10 @@ object MediaFileManager {
         return collectedFiles.values.map { file ->
             val ext = file.extension.lowercase()
             val isAudio = ext == "mp3"
+            val cleanName = cleanDisplayName(file.nameWithoutExtension)
             DownloadedMediaFile(
                 file = file,
-                name = file.nameWithoutExtension,
+                name = cleanName,
                 sizeBytes = file.length(),
                 formattedSize = formatBytes(file.length()),
                 lastModified = file.lastModified(),
@@ -159,12 +173,40 @@ object MediaFileManager {
         }
     }
 
-    fun deleteMediaFile(file: File): Boolean {
-        return try {
-            if (file.exists()) file.delete() else false
-        } catch (_: Exception) {
-            false
+    fun deleteMediaFile(file: File, context: Context? = null): Boolean {
+        var deleted = false
+        try {
+            if (file.exists() && file.delete()) {
+                deleted = true
+            }
+        } catch (_: Exception) {}
+
+        if (context != null) {
+            try {
+                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
+                if (dm != null) {
+                    val query = DownloadManager.Query().setFilterByStatus(DownloadManager.STATUS_SUCCESSFUL)
+                    dm.query(query)?.use { cursor ->
+                        val idIdx = cursor.getColumnIndex(DownloadManager.COLUMN_ID)
+                        val localUriIdx = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
+                        while (cursor.moveToNext()) {
+                            if (idIdx >= 0 && localUriIdx >= 0) {
+                                val localUriStr = cursor.getString(localUriIdx) ?: continue
+                                val path = Uri.parse(localUriStr).path ?: continue
+                                if (path == file.absolutePath || File(path).name == file.name) {
+                                    val id = cursor.getLong(idIdx)
+                                    if (dm.remove(id) > 0) {
+                                        deleted = true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
         }
+
+        return deleted || !file.exists()
     }
 
     private fun formatBytes(bytes: Long): String {
