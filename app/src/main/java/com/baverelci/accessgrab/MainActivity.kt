@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
 import com.baverelci.accessgrab.accessibility.ShakeDetectorHelper
 import com.baverelci.accessgrab.downloader.ApkInstallHelper
@@ -36,7 +38,8 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         setContent {
-            AccessGrabTheme {
+            val highContrast by viewModel.prefs.isHighContrastLargeText.collectAsState()
+            AccessGrabTheme(highContrastLargeText = highContrast) {
                 MainScreen(viewModel = viewModel)
             }
         }

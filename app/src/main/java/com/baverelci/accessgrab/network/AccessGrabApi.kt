@@ -32,6 +32,15 @@ interface AccessGrabService {
         @Body request: LogReportRequest,
         @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
     ): LogReportResponse
+
+    @GET("api/announcement")
+    suspend fun getAnnouncement(): AnnouncementInfo
+
+    @POST("api/feedback")
+    suspend fun sendFeedback(
+        @Body request: FeedbackRequest,
+        @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
+    ): FeedbackResponse
 }
 
 object AccessGrabApi {

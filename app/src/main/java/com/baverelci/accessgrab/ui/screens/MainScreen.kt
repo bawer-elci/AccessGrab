@@ -1,8 +1,5 @@
 package com.baverelci.accessgrab.ui.screens
 
-import android.app.DownloadManager
-import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,10 +15,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,11 +52,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.R
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
+import com.baverelci.accessgrab.player.InAppPlayerManager
 import com.baverelci.accessgrab.ui.components.AccessibleButton
 import com.baverelci.accessgrab.ui.components.ClipboardPromptCard
 import com.baverelci.accessgrab.ui.components.DownloadCompletedCard
 import com.baverelci.accessgrab.ui.components.DownloadErrorCard
 import com.baverelci.accessgrab.ui.components.DownloadProgressCard
+import com.baverelci.accessgrab.ui.components.InAppPlayerCard
 import com.baverelci.accessgrab.ui.components.QualitySelectorCard
 import com.baverelci.accessgrab.ui.components.SearchResultsCard
 import com.baverelci.accessgrab.ui.components.UrlInputCard
@@ -77,6 +79,57 @@ fun MainScreen(
     val isCompletionSound by viewModel.prefs.isCompletionSoundEnabled.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val queueFeedback by viewModel.queueFeedbackMessage.collectAsState()
+    val activeAnnouncement by viewModel.activeAnnouncement.collectAsState()
+
+    // Sunucudan Gelen Canlı Duyuru / Mesaj Penceresi (#43)
+    if (activeAnnouncement != null) {
+        val ann = activeAnnouncement!!
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissAnnouncement() },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Campaign,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = ann.title.ifBlank { "AccessGrab Duyurusu" },
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { heading() }
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = ann.message,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            },
+            confirmButton = {
+                AccessibleButton(
+                    text = "Kapat",
+                    contentDesc = "Duyuru penceresini kapat",
+                    icon = Icons.Default.Close,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = { viewModel.dismissAnnouncement() }
+                )
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
 
     LaunchedEffect(queueFeedback) {
         queueFeedback?.let { msg ->
@@ -221,6 +274,7 @@ fun MainScreen(
                 modifier = Modifier.padding(innerPadding)
             )
             3 -> AboutScreen(
+                viewModel = viewModel,
                 modifier = Modifier.padding(innerPadding)
             )
         }
@@ -233,6 +287,7 @@ fun DownloaderContent(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
     val urlInput by viewModel.urlInput.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
@@ -240,6 +295,7 @@ fun DownloaderContent(
     val selectedQuality by viewModel.selectedQuality.collectAsState()
     val clipboardUrl by viewModel.clipboardDetectedUrl.collectAsState()
     val downloadQueue by viewModel.downloadQueue.collectAsState()
+    val playerState by InAppPlayerManager.state.collectAsState()
 
     Column(
         modifier = modifier
@@ -273,6 +329,41 @@ fun DownloaderContent(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
             }
+        }
+
+        // Canlı Önizleme veya Oynatıcı Aktifse İndir Sekmesinde de Oynatıcıyı Göster (#8)
+        if (playerState.isActive && playerState.isRemotePreview) {
+            InAppPlayerCard(
+                playerState = playerState,
+                onTogglePlayPause = { InAppPlayerManager.togglePlayPause() },
+                onSeekBackward = {
+                    InAppPlayerManager.seekBy(-10_000)
+                    AccessibilityHelper.announce(view, "10 saniye geri sarıldı")
+                },
+                onSeekForward = {
+                    InAppPlayerManager.seekBy(10_000)
+                    AccessibilityHelper.announce(view, "10 saniye ileri sarıldı")
+                },
+                onRestartFromBeginning = {
+                    InAppPlayerManager.restartFromBeginning()
+                    AccessibilityHelper.announce(view, "En baştan başlatıldı")
+                },
+                onNext = {},
+                onPrevious = {},
+                onCycleSpeed = {
+                    val newSpeed = InAppPlayerManager.cyclePlaybackSpeed()
+                    val formatted = if (newSpeed % 1.0f == 0f) "${newSpeed.toInt()}x" else "${newSpeed}x"
+                    AccessibilityHelper.announce(view, "Oynatma hızı: $formatted")
+                },
+                onCycleVolumeBoost = {
+                    val newBoost = InAppPlayerManager.cycleVolumeBoost()
+                    AccessibilityHelper.announce(view, "Ses gücü: %$newBoost")
+                },
+                onStop = {
+                    InAppPlayerManager.stop()
+                    AccessibilityHelper.announce(view, "Canlı önizleme kapatıldı")
+                }
+            )
         }
 
         // Panoda Algılanan Bağlantı Bildirimi (Varsa)
@@ -342,12 +433,14 @@ fun DownloaderContent(
             )
         }
 
-        // Doğrudan Kelimeyle Arama Sonuçları Listesi
+        // Doğrudan Kelimeyle Arama Sonuçları Listesi (#8 Canlı Önizle & #17 Daha Fazla Sonuç Getir)
         if (uiState is UiState.SearchResultsReady) {
             val searchState = uiState as UiState.SearchResultsReady
             SearchResultsCard(
                 query = searchState.query,
                 results = searchState.results,
+                canLoadMore = searchState.canLoadMore,
+                isLoadingMore = searchState.isLoadingMore,
                 onSelectResultForQuality = { item ->
                     viewModel.selectSearchResultForQuality(item)
                 },
@@ -361,11 +454,23 @@ fun DownloaderContent(
                         title = item.title,
                         quality = qual
                     )
+                },
+                onPreviewListen = { item ->
+                    if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                    AccessibilityHelper.announce(view, "${item.title} canlı önizleme başlatılıyor…")
+                    InAppPlayerManager.playRemotePreview(
+                        title = item.title,
+                        mediaUrl = item.url,
+                        context = context
+                    )
+                },
+                onLoadMore = {
+                    viewModel.loadMoreSearchResults()
                 }
             )
         }
 
-        // Medya Başarıyla Yüklendiğinde Format ve Kalite Seçimi
+        // Medya Başarıyla Yüklendiğinde Format ve Kalite Seçimi (#8 Canlı Önizleme Desteğiyle)
         if (uiState is UiState.MediaReady) {
             val media = (uiState as UiState.MediaReady).data
             QualitySelectorCard(
@@ -392,6 +497,15 @@ fun DownloaderContent(
                         format = fmt,
                         title = media.title,
                         quality = qual
+                    )
+                },
+                onPreviewListen = {
+                    if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                    AccessibilityHelper.announce(view, "${media.title} canlı önizleme başlatılıyor…")
+                    InAppPlayerManager.playRemotePreview(
+                        title = media.title,
+                        mediaUrl = media.url,
+                        context = context
                     )
                 }
             )

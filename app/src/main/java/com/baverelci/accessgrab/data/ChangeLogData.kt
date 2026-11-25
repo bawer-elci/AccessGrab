@@ -10,9 +10,23 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v1.8.0",
+            version = "v2.0.0",
             date = "25 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Kütüphane'de 'Tümünü Sil' & Zil/Alarm/Bildirim Sesi Yap: Kütüphanedeki tüm medyaları onay penceresiyle tek dokunuşla temizleme ve 'Diğer Seçenekler' menüsünden doğrudan Zil Sesi, Alarm Sesi ve Bildirim Sesi ayarlayıp kaldırma.",
+                "%200 Ekstra Ses Güçlendirici & 30 Sn Zil Sesi Kırpıcı: Oynatıcı penceresinde sesi donanımsal olarak %200'e kadar artırma ve çalan şarkının tam o saniyesinden 30 saniyelik bölümü kesip doğrudan telefon zil sesi yapma.",
+                "İndirmeden Önce Canlı Dinle (Önizle) & 20 Arama Sonucu: Arama sonuçlarında veya medya kartında indirmeden önce doğrudan önizleme dinleme ve 'Daha Fazla Sonuç Getir' ile 20 sonuca kadar listeleme.",
+                "TalkBack İki Parmakla Çift Dokunma (MediaSession) & Telefon Araması Uyumu (AudioFocus): Kulaklık tuşu veya TalkBack iki parmak hareketiyle duraklat/oynat ve telefon araması geldiğinde otomatik duraklatıp görüşme bitince devam etme.",
+                "Az Görenler İçin Ultra Yüksek Kontrast (Siyah-Sarı) & Dev Yazı Modu: Ayarlar'dan tek dokunuşla tam siyah zemin üzerine parlak sarı ve büyük puntolu görünüme geçiş.",
+                "Kesintisiz İndirme Kilidi & Kaldığı Megabayttan Devam Etme: Ekran kapansa bile Wi-Fi'ın uyumasını önleme ve internet koparsa kaldığı bayttan otomatik devam etme (HTTP Range).",
+                "Kullanım Rehberi Bilgi Kartı, Geliştiriciye Mesaj Gönder, Canlı Duyuru ve Melodili Güncelleme Bildirimi."
+            )
+        ),
+        ReleaseLog(
+            version = "v1.8.0",
+            date = "25 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Uygulamadan Çıkmadan Doğrudan Kelimeyle & Sesle Arama: Kutuya şarkı, sanatçı veya video adı yazarak ya da 'Sesle Ara (Mikrofon)' butonunu/eylemini kullanarak sonuçları anında listeleme ve tek dokunuşla MP3/MP4 indirme.",
                 "Diğer Seçenekler Menüsü & Zil Sesi Yap / Kaldır: Kütüphane'de her dosyanın yanına 'Diğer Seçenekler' butonu ve TalkBack eylemleri eklendi; indirilen dosyayı doğrudan Telefon Zil Sesi Yapma ve tek dokunuşla eski zil sesine dönme.",

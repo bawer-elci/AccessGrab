@@ -11,16 +11,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.AlarmOff
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.OpenInNew
@@ -74,11 +79,14 @@ fun LibraryScreen(
     val view = LocalView.current
     val isHaptic by viewModel.prefs.isHapticEnabled.collectAsState()
     val activeRingtonePath by viewModel.prefs.activeRingtonePath.collectAsState()
+    val activeAlarmPath by viewModel.prefs.activeAlarmPath.collectAsState()
+    val activeNotificationSoundPath by viewModel.prefs.activeNotificationSoundPath.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val playerState by InAppPlayerManager.state.collectAsState()
 
     var files by remember { mutableStateOf(MediaFileManager.getDownloadedFiles(context)) }
     var fileToDelete by remember { mutableStateOf<DownloadedMediaFile?>(null) }
+    var showDeleteAllConfirm by remember { mutableStateOf(false) }
     var fileForOptionsMenu by remember { mutableStateOf<DownloadedMediaFile?>(null) }
     var feedbackMessage by remember { mutableStateOf<String?>(null) }
 
@@ -144,11 +152,110 @@ fun LibraryScreen(
         }
     }
 
-    // "Diğer Seçenekler" Menüsü Diyaloğu (Oynat, Baştan Başlat, Paylaş, Zil Sesi Yap / Kaldır, Harici Aç, Sil)
+    fun handleSetAlarm(item: DownloadedMediaFile) {
+        val res = RingtoneHelper.setAsAlarm(context, item.file, viewModel.prefs)
+        if (res.isSuccess) {
+            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+            feedbackMessage = res.getOrNull()
+        } else {
+            if (isHaptic) AccessibilityHelper.vibrateError(context)
+            feedbackMessage = res.exceptionOrNull()?.message
+        }
+    }
+
+    fun handleRemoveAlarm() {
+        val res = RingtoneHelper.removeCustomAlarm(context, viewModel.prefs)
+        if (res.isSuccess) {
+            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+            feedbackMessage = res.getOrNull()
+        } else {
+            if (isHaptic) AccessibilityHelper.vibrateError(context)
+            feedbackMessage = res.exceptionOrNull()?.message
+        }
+    }
+
+    fun handleSetNotificationSound(item: DownloadedMediaFile) {
+        val res = RingtoneHelper.setAsNotificationSound(context, item.file, viewModel.prefs)
+        if (res.isSuccess) {
+            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+            feedbackMessage = res.getOrNull()
+        } else {
+            if (isHaptic) AccessibilityHelper.vibrateError(context)
+            feedbackMessage = res.exceptionOrNull()?.message
+        }
+    }
+
+    fun handleRemoveNotificationSound() {
+        val res = RingtoneHelper.removeCustomNotificationSound(context, viewModel.prefs)
+        if (res.isSuccess) {
+            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+            feedbackMessage = res.getOrNull()
+        } else {
+            if (isHaptic) AccessibilityHelper.vibrateError(context)
+            feedbackMessage = res.exceptionOrNull()?.message
+        }
+    }
+
+    // "Tümünü Sil" Onay Diyaloğu
+    if (showDeleteAllConfirm) {
+        val totalCount = files.size
+        AlertDialog(
+            onDismissRequest = { showDeleteAllConfirm = false },
+            title = {
+                Text(
+                    text = "Tüm Medyaları Sil",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.error
+                )
+            },
+            text = {
+                Text(
+                    text = "Kütüphanedeki toplam $totalCount adet medya dosyasının tamamını cihazınızdan kalıcı olarak silmek istediğinize emin misiniz?",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            confirmButton = {
+                AccessibleButton(
+                    text = "Evet, Tümünü Sil",
+                    contentDesc = "Kütüphanedeki toplam $totalCount adet medya dosyasını kalıcı olarak sil",
+                    icon = Icons.Default.DeleteForever,
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                    onClick = {
+                        InAppPlayerManager.stop()
+                        val deletedCount = MediaFileManager.deleteAllMediaFiles(context)
+                        files.forEach { viewModel.prefs.clearSavedPlaybackPosition(it.name) }
+                        if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                        feedbackMessage = "$deletedCount adet medya dosyası kütüphaneden silindi."
+                        syncFiles()
+                        showDeleteAllConfirm = false
+                    }
+                )
+            },
+            dismissButton = {
+                AccessibleButton(
+                    text = "İptal",
+                    contentDesc = "Tümünü silme işlemini iptal et",
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    onClick = { showDeleteAllConfirm = false }
+                )
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
+
+    // "Diğer Seçenekler" Menüsü Diyaloğu (Oynat, Baştan Başlat, Paylaş, Zil Sesi / Alarm Sesi / Bildirim Sesi Yap-Kaldır, Harici Aç, Sil)
     if (fileForOptionsMenu != null) {
         val target = fileForOptionsMenu!!
         val isThisRingtone = activeRingtonePath == target.file.absolutePath
         val hasAnyCustomRingtone = !activeRingtonePath.isNullOrBlank()
+        val isThisAlarm = activeAlarmPath == target.file.absolutePath
+        val hasAnyCustomAlarm = !activeAlarmPath.isNullOrBlank()
+        val isThisNotificationSound = activeNotificationSoundPath == target.file.absolutePath
+        val hasAnyCustomNotificationSound = !activeNotificationSoundPath.isNullOrBlank()
         val savedPos = viewModel.prefs.getSavedPlaybackPosition(target.name)
 
         AlertDialog(
@@ -162,7 +269,10 @@ fun LibraryScreen(
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
                         text = "${target.extension} • ${target.formattedSize} • ${target.formattedDate}",
                         style = MaterialTheme.typography.bodySmall,
@@ -214,6 +324,7 @@ fun LibraryScreen(
                         }
                     )
 
+                    // 1. Zil Sesi Yap / Kaldır
                     if (!isThisRingtone) {
                         AccessibleButton(
                             text = "Zil Sesi Yap",
@@ -239,6 +350,66 @@ fun LibraryScreen(
                             onClick = {
                                 fileForOptionsMenu = null
                                 handleRemoveRingtone()
+                            }
+                        )
+                    }
+
+                    // 2. Alarm Sesi Yap / Kaldır (#21)
+                    if (!isThisAlarm) {
+                        AccessibleButton(
+                            text = "Alarm Sesi Yap",
+                            contentDesc = "${target.name} dosyasını telefon alarm sesi yap",
+                            icon = Icons.Default.Alarm,
+                            containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                            contentColor = MaterialTheme.colorScheme.tertiary,
+                            onClick = {
+                                val item = target
+                                fileForOptionsMenu = null
+                                handleSetAlarm(item)
+                            }
+                        )
+                    }
+
+                    if (isThisAlarm || hasAnyCustomAlarm) {
+                        AccessibleButton(
+                            text = "Alarm Sesini Kaldır (Eskiye Dön)",
+                            contentDesc = "Ayarlanan alarm sesini kaldır ve önceki alarm sesine dön",
+                            icon = Icons.Default.AlarmOff,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            onClick = {
+                                fileForOptionsMenu = null
+                                handleRemoveAlarm()
+                            }
+                        )
+                    }
+
+                    // 3. Bildirim Sesi Yap / Kaldır (#21)
+                    if (!isThisNotificationSound) {
+                        AccessibleButton(
+                            text = "Bildirim Sesi Yap",
+                            contentDesc = "${target.name} dosyasını telefon bildirim sesi yap",
+                            icon = Icons.Default.Notifications,
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            contentColor = MaterialTheme.colorScheme.primary,
+                            onClick = {
+                                val item = target
+                                fileForOptionsMenu = null
+                                handleSetNotificationSound(item)
+                            }
+                        )
+                    }
+
+                    if (isThisNotificationSound || hasAnyCustomNotificationSound) {
+                        AccessibleButton(
+                            text = "Bildirim Sesini Kaldır (Eskiye Dön)",
+                            contentDesc = "Ayarlanan bildirim sesini kaldır ve önceki bildirim sesine dön",
+                            icon = Icons.Default.NotificationsOff,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            onClick = {
+                                fileForOptionsMenu = null
+                                handleRemoveNotificationSound()
                             }
                         )
                     }
@@ -289,7 +460,7 @@ fun LibraryScreen(
         )
     }
 
-    // Silme Onay Diyaloğu
+    // Tekil Silme Onay Diyaloğu
     if (fileToDelete != null) {
         val target = fileToDelete!!
         AlertDialog(
@@ -353,21 +524,41 @@ fun LibraryScreen(
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "Kütüphanem",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.semantics { heading() }
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = if (files.isEmpty()) "Henüz indirilmiş medya yok" else "Toplam ${files.size} adet indirilen medya dosyası",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
-            )
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "Kütüphanem",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { heading() }
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (files.isEmpty()) "Henüz indirilmiş medya yok" else "Toplam ${files.size} adet indirilen medya dosyası",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                )
+            }
+
+            if (files.isNotEmpty()) {
+                AccessibleButton(
+                    text = "Tümünü Sil",
+                    contentDesc = "Kütüphanedeki toplam ${files.size} adet medya dosyasının tamamını sil",
+                    icon = Icons.Default.DeleteForever,
+                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                    contentColor = MaterialTheme.colorScheme.error,
+                    fullWidth = false,
+                    onClick = {
+                        showDeleteAllConfirm = true
+                    }
+                )
+            }
         }
 
         // Görüntülü Video & Ses Oynatıcı Penceresi (Aktifse ekranda açılır)
@@ -407,6 +598,30 @@ fun LibraryScreen(
                     val newSpeed = InAppPlayerManager.cyclePlaybackSpeed()
                     val formatted = if (newSpeed % 1.0f == 0f) "${newSpeed.toInt()}x" else "${newSpeed}x"
                     feedbackMessage = "Oynatma hızı: $formatted"
+                },
+                onCycleVolumeBoost = {
+                    val newBoost = InAppPlayerManager.cycleVolumeBoost()
+                    feedbackMessage = "Ses gücü: %$newBoost"
+                },
+                onClip30SecRingtone = {
+                    val currentFile = playerState.currentFile
+                    if (currentFile != null) {
+                        val res = RingtoneHelper.trim30SecAndSetRingtone(
+                            context = context,
+                            sourceFile = currentFile.file,
+                            startMs = playerState.currentPositionMs,
+                            totalDurationMs = playerState.durationMs,
+                            prefs = viewModel.prefs
+                        )
+                        if (res.isSuccess) {
+                            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                            feedbackMessage = res.getOrNull()
+                            syncFiles()
+                        } else {
+                            if (isHaptic) AccessibilityHelper.vibrateError(context)
+                            feedbackMessage = res.exceptionOrNull()?.message
+                        }
+                    }
                 },
                 onStop = {
                     InAppPlayerManager.stop()
@@ -461,11 +676,15 @@ fun LibraryScreen(
             ) {
                 items(files, key = { it.file.absolutePath }) { item ->
                     val isRingtone = activeRingtonePath == item.file.absolutePath
+                    val isAlarm = activeAlarmPath == item.file.absolutePath
+                    val isNotificationSound = activeNotificationSoundPath == item.file.absolutePath
                     val savedPos = viewModel.prefs.getSavedPlaybackPosition(item.name)
 
                     MediaFileItemCard(
                         item = item,
                         isCurrentRingtone = isRingtone,
+                        isCurrentAlarm = isAlarm,
+                        isCurrentNotificationSound = isNotificationSound,
                         savedPositionMs = savedPos,
                         onOpen = {
                             handlePlay(item, fromBeginning = false)
@@ -481,6 +700,18 @@ fun LibraryScreen(
                         },
                         onRemoveRingtone = {
                             handleRemoveRingtone()
+                        },
+                        onSetAlarm = {
+                            handleSetAlarm(item)
+                        },
+                        onRemoveAlarm = {
+                            handleRemoveAlarm()
+                        },
+                        onSetNotificationSound = {
+                            handleSetNotificationSound(item)
+                        },
+                        onRemoveNotificationSound = {
+                            handleRemoveNotificationSound()
                         },
                         onOpenExternal = {
                             val result = MediaFileManager.openMediaFile(context, item.file)
@@ -510,19 +741,30 @@ fun LibraryScreen(
 fun MediaFileItemCard(
     item: DownloadedMediaFile,
     isCurrentRingtone: Boolean = false,
+    isCurrentAlarm: Boolean = false,
+    isCurrentNotificationSound: Boolean = false,
     savedPositionMs: Int = 0,
     onOpen: () -> Unit,
     onRestartFromBeginning: () -> Unit,
     onOpenOptionsMenu: () -> Unit,
     onSetRingtone: () -> Unit,
     onRemoveRingtone: () -> Unit,
+    onSetAlarm: () -> Unit,
+    onRemoveAlarm: () -> Unit,
+    onSetNotificationSound: () -> Unit,
+    onRemoveNotificationSound: () -> Unit,
     onOpenExternal: (() -> Unit)? = null,
     onShare: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val typeLabel = if (item.isAudio) "MP3 Ses" else "MP4 Video"
-    val ringtoneBadge = if (isCurrentRingtone) " (Aktif Zil Sesi)" else ""
+    val toneBadges = buildList {
+        if (isCurrentRingtone) add("Aktif Zil Sesi")
+        if (isCurrentAlarm) add("Aktif Alarm Sesi")
+        if (isCurrentNotificationSound) add("Aktif Bildirim Sesi")
+    }
+    val ringtoneBadge = if (toneBadges.isNotEmpty()) " (${toneBadges.joinToString(", ")})" else ""
     val resumeBadge = if (savedPositionMs > 5000) {
         val mins = (savedPositionMs / 1000) / 60
         val secs = (savedPositionMs / 1000) % 60
@@ -592,6 +834,36 @@ fun MediaFileItemCard(
                                     }
                                 )
                             }
+                            if (!isCurrentAlarm) {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Alarm Sesi Yap") {
+                                        onSetAlarm()
+                                        true
+                                    }
+                                )
+                            } else {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Alarm Sesini Kaldır") {
+                                        onRemoveAlarm()
+                                        true
+                                    }
+                                )
+                            }
+                            if (!isCurrentNotificationSound) {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Bildirim Sesi Yap") {
+                                        onSetNotificationSound()
+                                        true
+                                    }
+                                )
+                            } else {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "Bildirim Sesini Kaldır") {
+                                        onRemoveNotificationSound()
+                                        true
+                                    }
+                                )
+                            }
                             actions.add(
                                 CustomAccessibilityAction(label = "Diğer Seçenekler Menüsü") {
                                     onOpenOptionsMenu()
@@ -644,7 +916,7 @@ fun MediaFileItemCard(
                     }
                 }
 
-                // Dosyanın hemen yanında erişilebilir "Diğer Seçenekler" butonu (Paylaş, Sil, Zil Sesi Yap / Kaldır)
+                // Dosyanın hemen yanında erişilebilir "Diğer Seçenekler" butonu
                 IconButton(
                     onClick = onOpenOptionsMenu,
                     modifier = Modifier.semantics {

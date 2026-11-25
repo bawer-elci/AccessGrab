@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,6 +44,7 @@ fun QualitySelectorCard(
     onQualitySelected: (String) -> Unit,
     onStartDownload: () -> Unit,
     onQuickDownload: ((format: String, quality: String) -> Unit)? = null,
+    onPreviewListen: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -52,8 +54,20 @@ fun QualitySelectorCard(
         MediaInfoCard(
             media = media,
             onQuickDownload = onQuickDownload,
-            onDefaultDownload = onStartDownload
+            onDefaultDownload = onStartDownload,
+            onPreviewListen = onPreviewListen
         )
+
+        if (onPreviewListen != null) {
+            AccessibleButton(
+                text = "İndirmeden Önce Önizle / Dinle",
+                contentDesc = "${media.title} medyasını telefona indirmeden önce canlı dinle",
+                icon = Icons.Default.Headphones,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.tertiary,
+                onClick = onPreviewListen
+            )
+        }
 
         Text(
             text = "Format ve Kalite Seçimi",

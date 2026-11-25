@@ -2,6 +2,7 @@ package com.baverelci.accessgrab.accessibility
 
 import android.content.Context
 import android.media.AudioManager
+import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
@@ -59,6 +60,24 @@ object AccessibilityHelper {
         try {
             val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85)
             toneGen.startTone(ToneGenerator.TONE_PROP_ACK, 260)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Yeni bir güncelleme çıktığında hoş bir melodi/tonlama ile sesli uyarı verir.
+     */
+    fun playUpdateMelody(context: Context) {
+        try {
+            val notifUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val ringtone = RingtoneManager.getRingtone(context.applicationContext, notifUri)
+            if (ringtone != null) {
+                ringtone.play()
+                return
+            }
+        } catch (_: Exception) {}
+        try {
+            val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90)
+            toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 320)
         } catch (_: Exception) {}
     }
 

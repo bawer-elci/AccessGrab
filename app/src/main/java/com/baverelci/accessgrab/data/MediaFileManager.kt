@@ -250,6 +250,20 @@ object MediaFileManager {
         return deleted || !file.exists()
     }
 
+    /**
+     * Kütüphanedeki tüm indirilen medya dosyalarını tek seferde kalıcı olarak temizler.
+     */
+    fun deleteAllMediaFiles(context: Context? = null): Int {
+        val currentList = getDownloadedFiles(context)
+        var deletedCount = 0
+        for (item in currentList) {
+            if (deleteMediaFile(item.file, context)) {
+                deletedCount++
+            }
+        }
+        return deletedCount
+    }
+
     private fun formatBytes(bytes: Long): String {
         if (bytes <= 0) return "0 B"
         val units = arrayOf("B", "KB", "MB", "GB")

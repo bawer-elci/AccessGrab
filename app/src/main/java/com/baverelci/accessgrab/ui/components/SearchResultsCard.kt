@@ -8,12 +8,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -46,6 +47,10 @@ import com.baverelci.accessgrab.network.SearchResultItem
 fun SearchResultsCard(
     query: String,
     results: List<SearchResultItem>,
+    canLoadMore: Boolean = false,
+    isLoadingMore: Boolean = false,
+    onLoadMore: (() -> Unit)? = null,
+    onPreviewListen: ((SearchResultItem) -> Unit)? = null,
     onSelectResultForQuality: (SearchResultItem) -> Unit,
     onDirectDownload: (item: SearchResultItem, format: String, quality: String) -> Unit,
     modifier: Modifier = Modifier
@@ -71,6 +76,20 @@ fun SearchResultsCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                     )
+                    if (onPreviewListen != null) {
+                        AccessibleButton(
+                            text = "İndirmeden Önce Önizle / Dinle",
+                            contentDesc = "${target.title} medyasını telefona indirmeden önce canlı dinle",
+                            icon = Icons.Default.Headphones,
+                            containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                            contentColor = MaterialTheme.colorScheme.tertiary,
+                            onClick = {
+                                val item = target
+                                selectedMenuResult = null
+                                onPreviewListen(item)
+                            }
+                        )
+                    }
                     AccessibleButton(
                         text = "MP3 Ses İndir (192 kbps)",
                         contentDesc = "${target.title} medyasını 192 kbps MP3 ses olarak indir",
@@ -179,32 +198,52 @@ fun SearchResultsCard(
                             .semantics {
                                 this.contentDescription = summary
                                 this.role = Role.Button
-                                this.customActions = listOf(
+                                val actions = mutableListOf<CustomAccessibilityAction>()
+                                if (onPreviewListen != null) {
+                                    actions.add(
+                                        CustomAccessibilityAction("İndirmeden Önce Önizle / Dinle") {
+                                            onPreviewListen(item)
+                                            true
+                                        }
+                                    )
+                                }
+                                actions.add(
                                     CustomAccessibilityAction("MP3 Ses İndir (192 kbps)") {
                                         onDirectDownload(item, "mp3", "192")
                                         true
-                                    },
+                                    }
+                                )
+                                actions.add(
                                     CustomAccessibilityAction("MP3 Ses İndir (320 kbps Yüksek)") {
                                         onDirectDownload(item, "mp3", "320")
                                         true
-                                    },
+                                    }
+                                )
+                                actions.add(
                                     CustomAccessibilityAction("MP4 Video İndir (720p HD)") {
                                         onDirectDownload(item, "mp4", "720")
                                         true
-                                    },
+                                    }
+                                )
+                                actions.add(
                                     CustomAccessibilityAction("MP4 Video İndir (1080p Tam HD)") {
                                         onDirectDownload(item, "mp4", "1080")
                                         true
-                                    },
+                                    }
+                                )
+                                actions.add(
                                     CustomAccessibilityAction("Diğer Seçenekler Menüsü") {
                                         selectedMenuResult = item
                                         true
-                                    },
+                                    }
+                                )
+                                actions.add(
                                     CustomAccessibilityAction("Kalite Seçimi Ekranını Aç") {
                                         onSelectResultForQuality(item)
                                         true
                                     }
                                 )
+                                this.customActions = actions
                             }
                     ) {
                         Column(modifier = Modifier.clearAndSetSemantics { }) {
@@ -225,7 +264,6 @@ fun SearchResultsCard(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Dosyanın hemen yanında erişilebilir "Diğer Seçenekler" butonu
                     IconButton(
                         onClick = { selectedMenuResult = item },
                         modifier = Modifier.semantics {
@@ -241,6 +279,19 @@ fun SearchResultsCard(
                     }
                 }
             }
+        }
+
+        // #17 — Daha Fazla Sonuç Getir Butonu
+        if (canLoadMore && onLoadMore != null) {
+            AccessibleButton(
+                text = if (isLoadingMore) "Daha Fazla Sonuç Getiriliyor…" else "Daha Fazla Sonuç Getir",
+                contentDesc = "Bu arama için daha fazla sonuç yükle",
+                icon = Icons.Default.Add,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.primary,
+                enabled = !isLoadingMore,
+                onClick = onLoadMore
+            )
         }
     }
 }

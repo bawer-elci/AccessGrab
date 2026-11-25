@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -28,8 +29,10 @@ import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -66,11 +69,17 @@ fun InAppPlayerCard(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onCycleSpeed: () -> Unit,
+    onCycleVolumeBoost: (() -> Unit)? = null,
+    onClip30SecRingtone: (() -> Unit)? = null,
     onStop: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val file = playerState.currentFile ?: return
-    val statusText = if (playerState.isPlaying) "Oynatılıyor" else "Duraklatıldı"
+    val statusText = when {
+        playerState.isBuffering -> "Canlı Önizleme Hazırlanıyor…"
+        playerState.isPlaying -> "Oynatılıyor"
+        else -> "Duraklatıldı"
+    }
     val progressFraction = if (playerState.durationMs > 0) {
         (playerState.currentPositionMs.toFloat() / playerState.durationMs.toFloat()).coerceIn(0f, 1f)
     } else 0f
@@ -81,9 +90,15 @@ fun InAppPlayerCard(
         16f / 9f
     }
 
-    val headerDesc = "${if (file.isAudio) "Ses Oynatıcı Penceresi" else "Video Oynatıcı Penceresi"} ($statusText): ${file.name}. " +
+    val modeTitle = when {
+        playerState.isRemotePreview -> "Canlı Önizleme Oynatıcısı"
+        file.isAudio -> "MP3 Ses Oynatıcı Penceresi"
+        else -> "MP4 Video Oynatıcı Penceresi"
+    }
+
+    val headerDesc = "$modeTitle ($statusText): ${file.name}. " +
         "Geçen süre: ${playerState.formattedPosition}, Toplam süre: ${playerState.formattedDuration}. " +
-        "Oynatma hızı: ${playerState.formattedSpeed}."
+        "Hız: ${playerState.formattedSpeed}. Ses Gücü: ${playerState.formattedBoost}."
 
     Dialog(
         onDismissRequest = onStop,
@@ -98,16 +113,16 @@ fun InAppPlayerCard(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 20.dp)
+                .padding(horizontal = 14.dp, vertical = 16.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(18.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 1. Başlık ve Durum Özeti (TalkBack Eylemler menüsü de bu başlığa bağlıdır)
+                // 1. Başlık ve Durum Özeti (TalkBack Eylemler menüsü)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -116,7 +131,7 @@ fun InAppPlayerCard(
                             this.heading()
                             this.role = Role.Button
                             this.contentDescription = headerDesc
-                            this.customActions = listOf(
+                            val actions = mutableListOf(
                                 CustomAccessibilityAction(if (playerState.isPlaying) "Duraklat" else "Oynat") {
                                     onTogglePlayPause()
                                     true
@@ -132,29 +147,58 @@ fun InAppPlayerCard(
                                 CustomAccessibilityAction("Hızlandır (${playerState.formattedSpeed})") {
                                     onCycleSpeed()
                                     true
-                                },
-                                CustomAccessibilityAction("Baştan Başlat") {
-                                    onRestartFromBeginning?.invoke()
-                                    true
-                                },
-                                CustomAccessibilityAction("Sonraki Medyaya Geç") {
-                                    onNext()
-                                    true
-                                },
-                                CustomAccessibilityAction("Önceki Medyaya Geç") {
-                                    onPrevious()
-                                    true
-                                },
+                                }
+                            )
+                            if (onCycleVolumeBoost != null) {
+                                actions.add(
+                                    CustomAccessibilityAction("Sesi Güçlendir (${playerState.formattedBoost})") {
+                                        onCycleVolumeBoost()
+                                        true
+                                    }
+                                )
+                            }
+                            if (!playerState.isRemotePreview && onClip30SecRingtone != null) {
+                                actions.add(
+                                    CustomAccessibilityAction("Bu Saniyeden 30 Saniye Kesip Zil Sesi Yap") {
+                                        onClip30SecRingtone()
+                                        true
+                                    }
+                                )
+                            }
+                            if (onRestartFromBeginning != null) {
+                                actions.add(
+                                    CustomAccessibilityAction("Baştan Başlat") {
+                                        onRestartFromBeginning()
+                                        true
+                                    }
+                                )
+                            }
+                            if (!playerState.isRemotePreview) {
+                                actions.add(
+                                    CustomAccessibilityAction("Sonraki Medyaya Geç") {
+                                        onNext()
+                                        true
+                                    }
+                                )
+                                actions.add(
+                                    CustomAccessibilityAction("Önceki Medyaya Geç") {
+                                        onPrevious()
+                                        true
+                                    }
+                                )
+                            }
+                            actions.add(
                                 CustomAccessibilityAction("Pencereyi Kapat") {
                                     onStop()
                                     true
                                 }
                             )
+                            this.customActions = actions
                         }
                 ) {
                     Column(modifier = Modifier.clearAndSetSemantics { }) {
                         Text(
-                            text = if (file.isAudio) "MP3 Ses Oynatıcı • $statusText" else "MP4 Video Oynatıcı • $statusText",
+                            text = "$modeTitle • $statusText",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
@@ -169,8 +213,8 @@ fun InAppPlayerCard(
                     }
                 }
 
-                // 2. Görüntü Alanı (MP4 ise gerçek video görüntüsü SurfaceView üzerinde oynar, MP3 ise ses kartı görünür)
-                if (!file.isAudio) {
+                // 2. Görüntü Alanı
+                if (!file.isAudio && !playerState.isRemotePreview) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -212,18 +256,25 @@ fun InAppPlayerCard(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
+                            .height(100.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
                             .clearAndSetSemantics { },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Audiotrack,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(56.dp)
-                        )
+                        if (playerState.isBuffering) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(44.dp)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Audiotrack,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(50.dp)
+                            )
+                        }
                     }
                 }
 
@@ -233,15 +284,26 @@ fun InAppPlayerCard(
                         .fillMaxWidth()
                         .clearAndSetSemantics { }
                 ) {
-                    LinearProgressIndicator(
-                        progress = { progressFraction },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                        strokeCap = StrokeCap.Round
-                    )
+                    if (playerState.isBuffering) {
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            strokeCap = StrokeCap.Round
+                        )
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { progressFraction },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            strokeCap = StrokeCap.Round
+                        )
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -253,8 +315,8 @@ fun InAppPlayerCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Hız: ${playerState.formattedSpeed}",
-                            style = MaterialTheme.typography.titleMedium,
+                            text = "${playerState.formattedSpeed} • ${playerState.formattedBoost}",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
                         )
@@ -266,13 +328,14 @@ fun InAppPlayerCard(
                     }
                 }
 
-                // 4. Erişilebilir Büyük Oynatıcı Düğmeleri (Duraklat/Oynat, Geri Sar, İleri Sar, Hızlandır)
+                // 4. Erişilebilir Büyük Oynatıcı Düğmeleri
                 AccessibleButton(
                     text = if (playerState.isPlaying) "Duraklat" else "Oynat",
                     contentDesc = if (playerState.isPlaying) "Medyayı duraklat (${playerState.formattedPosition})" else "Medyayı oynatmaya devam et",
                     icon = if (playerState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
+                    enabled = !playerState.isBuffering,
                     onClick = onTogglePlayPause
                 )
 
@@ -287,6 +350,7 @@ fun InAppPlayerCard(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
+                        enabled = !playerState.isBuffering,
                         onClick = onSeekBackward
                     )
 
@@ -297,11 +361,12 @@ fun InAppPlayerCard(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
+                        enabled = !playerState.isBuffering,
                         onClick = onSeekForward
                     )
                 }
 
-                // Hızlandır ve Baştan Başlat Satırı
+                // Hızlandır ve %200 Ses Güçlendirici Satırı
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -316,42 +381,68 @@ fun InAppPlayerCard(
                         onClick = onCycleSpeed
                     )
 
-                    if (onRestartFromBeginning != null) {
+                    if (onCycleVolumeBoost != null) {
                         AccessibleButton(
-                            text = "Baştan",
-                            contentDesc = "Medyayı en baştan başlat",
-                            icon = Icons.Default.Replay,
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            text = "Ses (%${playerState.volumeBoostPercent})",
+                            contentDesc = "Sesi güçlendir. Şu anki seviye: ${playerState.formattedBoost}",
+                            icon = Icons.Default.VolumeUp,
+                            containerColor = if (playerState.volumeBoostPercent > 100) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (playerState.volumeBoostPercent > 100) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f),
-                            onClick = onRestartFromBeginning
+                            onClick = onCycleVolumeBoost
                         )
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+                // #25 — Bu Saniyeden İtibaren 30 Sn Kesip Zil Sesi Yap Butonu
+                if (!playerState.isRemotePreview && onClip30SecRingtone != null) {
                     AccessibleButton(
-                        text = "Önceki",
-                        contentDesc = "Önceki medyaya geç",
-                        icon = Icons.Default.SkipPrevious,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        onClick = onPrevious
+                        text = "Bu Saniyeden (${playerState.formattedPosition}) 30 Sn Zil Sesi Yap",
+                        contentDesc = "${playerState.formattedPosition} saniyesinden itibaren 30 saniyelik bölümü kes ve telefon zil sesi yap",
+                        icon = Icons.Default.ContentCut,
+                        containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                        contentColor = MaterialTheme.colorScheme.tertiary,
+                        onClick = onClip30SecRingtone
                     )
+                }
 
-                    AccessibleButton(
-                        text = "Sonraki",
-                        contentDesc = "Sonraki medyaya geç",
-                        icon = Icons.Default.SkipNext,
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        onClick = onNext
-                    )
+                if (!playerState.isRemotePreview) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        AccessibleButton(
+                            text = "Önceki",
+                            contentDesc = "Önceki medyaya geç",
+                            icon = Icons.Default.SkipPrevious,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                            onClick = onPrevious
+                        )
+
+                        if (onRestartFromBeginning != null) {
+                            AccessibleButton(
+                                text = "Baştan",
+                                contentDesc = "Medyayı en baştan başlat",
+                                icon = Icons.Default.Replay,
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                                onClick = onRestartFromBeginning
+                            )
+                        }
+
+                        AccessibleButton(
+                            text = "Sonraki",
+                            contentDesc = "Sonraki medyaya geç",
+                            icon = Icons.Default.SkipNext,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f),
+                            onClick = onNext
+                        )
+                    }
                 }
 
                 // Pencereyi Kapat Düğmesi

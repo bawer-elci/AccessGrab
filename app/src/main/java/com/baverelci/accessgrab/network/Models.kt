@@ -76,3 +76,24 @@ data class LogReportResponse(
     @SerializedName("report_id") val reportId: String?,
     @SerializedName("message") val message: String?
 )
+
+data class AnnouncementInfo(
+    @SerializedName("active") val active: Boolean = false,
+    @SerializedName("id") val id: String = "",
+    @SerializedName("title") val title: String = "",
+    @SerializedName("message") val message: String = ""
+)
+
+data class FeedbackRequest(
+    @SerializedName("device_info") val deviceInfo: String,
+    @SerializedName("app_version") val appVersion: String,
+    @SerializedName("sender_name") val senderName: String? = null,
+    @SerializedName("message") val message: String,
+    @SerializedName("key") val key: String? = null
+)
+
+data class FeedbackResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("feedback_id") val feedbackId: String?,
+    @SerializedName("message") val message: String?
+)

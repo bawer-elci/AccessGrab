@@ -41,6 +41,7 @@ fun MediaInfoCard(
     media: ExtractResponse,
     onQuickDownload: ((format: String, quality: String) -> Unit)? = null,
     onDefaultDownload: (() -> Unit)? = null,
+    onPreviewListen: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val accessibleSummary = "${media.platform} medyası: ${media.title}. Yükleyen: ${media.author}. Süre: ${media.durationFormatted}."
@@ -62,36 +63,48 @@ fun MediaInfoCard(
                     this.role = Role.Button
                 }
                 if (onQuickDownload != null) {
-                    this.customActions = listOf(
-                        CustomAccessibilityAction("MP4 Video İndir (720p Standart HD)") {
-                            onQuickDownload("mp4", "720")
-                            true
-                        },
-                        CustomAccessibilityAction("MP4 Video İndir (1080p Tam HD)") {
-                            onQuickDownload("mp4", "1080")
-                            true
-                        },
-                        CustomAccessibilityAction("MP4 Video İndir (480p SD)") {
-                            onQuickDownload("mp4", "480")
-                            true
-                        },
-                        CustomAccessibilityAction("MP4 Video İndir (360p Düşük Boyut)") {
-                            onQuickDownload("mp4", "360")
-                            true
-                        },
-                        CustomAccessibilityAction("MP3 Ses İndir (192 kbps Standart)") {
-                            onQuickDownload("mp3", "192")
-                            true
-                        },
-                        CustomAccessibilityAction("MP3 Ses İndir (320 kbps Yüksek Kalite)") {
-                            onQuickDownload("mp3", "320")
-                            true
-                        },
-                        CustomAccessibilityAction("MP3 Ses İndir (128 kbps Tasarruf)") {
-                            onQuickDownload("mp3", "128")
-                            true
-                        }
+                    val actions = mutableListOf<CustomAccessibilityAction>()
+                    if (onPreviewListen != null) {
+                        actions.add(
+                            CustomAccessibilityAction("İndirmeden Önce Önizle / Dinle") {
+                                onPreviewListen()
+                                true
+                            }
+                        )
+                    }
+                    actions.addAll(
+                        listOf(
+                            CustomAccessibilityAction("MP4 Video İndir (720p Standart HD)") {
+                                onQuickDownload("mp4", "720")
+                                true
+                            },
+                            CustomAccessibilityAction("MP4 Video İndir (1080p Tam HD)") {
+                                onQuickDownload("mp4", "1080")
+                                true
+                            },
+                            CustomAccessibilityAction("MP4 Video İndir (480p SD)") {
+                                onQuickDownload("mp4", "480")
+                                true
+                            },
+                            CustomAccessibilityAction("MP4 Video İndir (360p Düşük Boyut)") {
+                                onQuickDownload("mp4", "360")
+                                true
+                            },
+                            CustomAccessibilityAction("MP3 Ses İndir (192 kbps Standart)") {
+                                onQuickDownload("mp3", "192")
+                                true
+                            },
+                            CustomAccessibilityAction("MP3 Ses İndir (320 kbps Yüksek Kalite)") {
+                                onQuickDownload("mp3", "320")
+                                true
+                            },
+                            CustomAccessibilityAction("MP3 Ses İndir (128 kbps Tasarruf)") {
+                                onQuickDownload("mp3", "128")
+                                true
+                            }
+                        )
                     )
+                    this.customActions = actions
                 }
             }
     ) {

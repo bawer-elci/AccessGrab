@@ -32,9 +32,19 @@ class PreferencesManager(context: Context) {
     private val _isCompletionSoundEnabled = MutableStateFlow(prefs.getBoolean(KEY_COMPLETION_SOUND, true))
     val isCompletionSoundEnabled: StateFlow<Boolean> = _isCompletionSoundEnabled.asStateFlow()
 
-    // Aktif özel zil sesi dosya yolu (Varsa)
+    // Aktif özel zil sesi, alarm sesi ve bildirim sesi dosya yolları (Varsa)
     private val _activeRingtonePath = MutableStateFlow(prefs.getString(KEY_ACTIVE_RINGTONE_PATH, null))
     val activeRingtonePath: StateFlow<String?> = _activeRingtonePath.asStateFlow()
+
+    private val _activeAlarmPath = MutableStateFlow(prefs.getString(KEY_ACTIVE_ALARM_PATH, null))
+    val activeAlarmPath: StateFlow<String?> = _activeAlarmPath.asStateFlow()
+
+    private val _activeNotificationSoundPath = MutableStateFlow(prefs.getString(KEY_ACTIVE_NOTIF_SOUND_PATH, null))
+    val activeNotificationSoundPath: StateFlow<String?> = _activeNotificationSoundPath.asStateFlow()
+
+    // Az Görenler İçin Ultra Yüksek Kontrast ve Dev Yazı Modu
+    private val _isHighContrastLargeText = MutableStateFlow(prefs.getBoolean(KEY_HIGH_CONTRAST_LARGE, false))
+    val isHighContrastLargeText: StateFlow<Boolean> = _isHighContrastLargeText.asStateFlow()
 
     fun setHapticEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_HAPTIC, enabled).apply()
@@ -64,6 +74,19 @@ class PreferencesManager(context: Context) {
     fun setCompletionSoundEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_COMPLETION_SOUND, enabled).apply()
         _isCompletionSoundEnabled.value = enabled
+    }
+
+    fun setHighContrastLargeText(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_HIGH_CONTRAST_LARGE, enabled).apply()
+        _isHighContrastLargeText.value = enabled
+    }
+
+    fun getLastDismissedAnnouncementId(): String {
+        return prefs.getString(KEY_DISMISSED_ANNOUNCEMENT_ID, "") ?: ""
+    }
+
+    fun setLastDismissedAnnouncementId(id: String) {
+        prefs.edit().putString(KEY_DISMISSED_ANNOUNCEMENT_ID, id).apply()
     }
 
     fun getLastNotifiedVersionCode(): Int {
@@ -113,6 +136,38 @@ class PreferencesManager(context: Context) {
         }
     }
 
+    fun setActiveAlarmPath(path: String?) {
+        if (path == null) {
+            prefs.edit().remove(KEY_ACTIVE_ALARM_PATH).apply()
+        } else {
+            prefs.edit().putString(KEY_ACTIVE_ALARM_PATH, path).apply()
+        }
+        _activeAlarmPath.value = path
+    }
+
+    fun getPreviousAlarmUri(): String? = prefs.getString(KEY_PREV_ALARM_URI, null)
+
+    fun setPreviousAlarmUri(uriStr: String?) {
+        if (uriStr == null) prefs.edit().remove(KEY_PREV_ALARM_URI).apply()
+        else prefs.edit().putString(KEY_PREV_ALARM_URI, uriStr).apply()
+    }
+
+    fun setActiveNotificationSoundPath(path: String?) {
+        if (path == null) {
+            prefs.edit().remove(KEY_ACTIVE_NOTIF_SOUND_PATH).apply()
+        } else {
+            prefs.edit().putString(KEY_ACTIVE_NOTIF_SOUND_PATH, path).apply()
+        }
+        _activeNotificationSoundPath.value = path
+    }
+
+    fun getPreviousNotificationSoundUri(): String? = prefs.getString(KEY_PREV_NOTIF_SOUND_URI, null)
+
+    fun setPreviousNotificationSoundUri(uriStr: String?) {
+        if (uriStr == null) prefs.edit().remove(KEY_PREV_NOTIF_SOUND_URI).apply()
+        else prefs.edit().putString(KEY_PREV_NOTIF_SOUND_URI, uriStr).apply()
+    }
+
     companion object {
         private const val KEY_HAPTIC = "pref_haptic"
         private const val KEY_CLIPBOARD = "pref_clipboard"
@@ -123,5 +178,11 @@ class PreferencesManager(context: Context) {
         private const val KEY_COMPLETION_SOUND = "pref_completion_sound"
         private const val KEY_ACTIVE_RINGTONE_PATH = "pref_active_ringtone_path"
         private const val KEY_PREV_RINGTONE_URI = "pref_prev_ringtone_uri"
+        private const val KEY_ACTIVE_ALARM_PATH = "pref_active_alarm_path"
+        private const val KEY_PREV_ALARM_URI = "pref_prev_alarm_uri"
+        private const val KEY_ACTIVE_NOTIF_SOUND_PATH = "pref_active_notif_sound_path"
+        private const val KEY_PREV_NOTIF_SOUND_URI = "pref_prev_notif_sound_uri"
+        private const val KEY_HIGH_CONTRAST_LARGE = "pref_high_contrast_large"
+        private const val KEY_DISMISSED_ANNOUNCEMENT_ID = "pref_dismissed_announcement_id"
     }
 }

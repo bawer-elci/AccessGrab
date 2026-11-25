@@ -5,24 +5,33 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.baverelci.accessgrab.MainActivity
-import com.baverelci.accessgrab.R
+import com.baverelci.accessgrab.accessibility.AccessibilityHelper
 
 object UpdateNotificationHelper {
 
-    const val CHANNEL_ID = "accessgrab_updates"
+    const val CHANNEL_ID = "accessgrab_updates_melody"
     const val NOTIFICATION_ID = 1001
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Uygulama Güncellemeleri"
-            val descriptionText = "AccessGrab yeni sürüm bildirimleri"
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val name = "Uygulama Güncellemeleri (Melodili)"
+            val descriptionText = "AccessGrab yeni sürüm çıktığında sesli bildirim gönderir"
+            val importance = NotificationManager.IMPORTANCE_HIGH
+            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val audioAttrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
+                setSound(soundUri, audioAttrs)
+                enableVibration(true)
             }
             val notificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -36,6 +45,7 @@ object UpdateNotificationHelper {
         changelog: String
     ) {
         createNotificationChannel(context)
+        AccessibilityHelper.playUpdateMelody(context)
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

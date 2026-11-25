@@ -1,9 +1,7 @@
 package com.baverelci.accessgrab.ui.screens
 
 import android.app.DownloadManager
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,10 +20,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Vibration
@@ -35,6 +39,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
@@ -62,11 +67,11 @@ import com.baverelci.accessgrab.data.ChangeLogData
 import com.baverelci.accessgrab.downloader.ApkInstallHelper
 import com.baverelci.accessgrab.ui.components.AccessibleButton
 import com.baverelci.accessgrab.ui.components.ChangeLogDialog
+import com.baverelci.accessgrab.ui.components.UserGuideDialog
 import com.baverelci.accessgrab.viewmodel.MainViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
@@ -82,6 +87,7 @@ fun SettingsScreen(
     val isAutoUpdate by prefs.isAutoUpdateEnabled.collectAsState()
     val isShakePlayPause by prefs.isShakeToPlayPauseEnabled.collectAsState()
     val isCompletionSound by prefs.isCompletionSoundEnabled.collectAsState()
+    val isHighContrastLargeText by prefs.isHighContrastLargeText.collectAsState()
     val defaultFormat by prefs.defaultFormat.collectAsState()
 
     val updateInfo by viewModel.updateInfo.collectAsState()
@@ -89,14 +95,122 @@ fun SettingsScreen(
     val updateStatusMessage by viewModel.updateStatusMessage.collectAsState()
     val isSendingLogs by viewModel.isSendingLogs.collectAsState()
     val logReportStatusMessage by viewModel.logReportStatusMessage.collectAsState()
+    val isSendingFeedback by viewModel.isSendingFeedback.collectAsState()
+    val feedbackStatusMessage by viewModel.feedbackStatusMessage.collectAsState()
 
     var isInstallingUpdate by remember { mutableStateOf(false) }
     var installProgress by remember { mutableStateOf(0) }
     var showChangeLog by remember { mutableStateOf(false) }
+    var showUserGuide by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
+    var feedbackSenderName by remember { mutableStateOf("") }
+    var feedbackMessageText by remember { mutableStateOf("") }
 
     // Sürüm Notları (ChangeLog) Diyaloğu
     if (showChangeLog) {
         ChangeLogDialog(onDismiss = { showChangeLog = false })
+    }
+
+    // Kullanım ve Kısayol Rehberi Bilgi Kartı Diyaloğu (#33)
+    if (showUserGuide) {
+        UserGuideDialog(onDismiss = { showUserGuide = false })
+    }
+
+    // Geliştiriciye Öneri / Mesaj Gönder Diyaloğu (#38)
+    if (showFeedbackDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSendingFeedback) showFeedbackDialog = false
+            },
+            title = {
+                Text(
+                    text = "Geliştiriciye Öneri / Mesaj Gönder",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { heading() }
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Uygulama hakkındaki görüşlerinizi, yeni özellik önerilerinizi veya yaşadığınız bir sorunu doğrudan geliştiriciye iletebilirsiniz.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    OutlinedTextField(
+                        value = feedbackSenderName,
+                        onValueChange = { feedbackSenderName = it },
+                        label = { Text("Adınız veya Rumuzunuz (İsteğe Bağlı)") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics {
+                                this.contentDescription = "Adınız veya rumuzunuz metin alanı"
+                            }
+                    )
+
+                    OutlinedTextField(
+                        value = feedbackMessageText,
+                        onValueChange = { feedbackMessageText = it },
+                        label = { Text("Öneriniz veya Mesajınız") },
+                        minLines = 3,
+                        maxLines = 6,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .semantics {
+                                this.contentDescription = "Öneriniz veya mesajınız metin alanı"
+                            }
+                    )
+
+                    if (feedbackStatusMessage != null) {
+                        Text(
+                            text = feedbackStatusMessage!!,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                AccessibleButton(
+                    text = if (isSendingFeedback) "Gönderiliyor…" else "Mesajı Gönder",
+                    contentDesc = if (isSendingFeedback) "Mesaj gönderiliyor" else "Yazdığınız öneri veya mesajı geliştiriciye gönder",
+                    icon = Icons.Default.Send,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    enabled = !isSendingFeedback,
+                    onClick = {
+                        viewModel.sendUserFeedback(
+                            senderName = feedbackSenderName,
+                            message = feedbackMessageText,
+                            onSuccess = {
+                                if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                                feedbackMessageText = ""
+                                showFeedbackDialog = false
+                            }
+                        )
+                    }
+                )
+            },
+            dismissButton = {
+                if (!isSendingFeedback) {
+                    AccessibleButton(
+                        text = "Kapat",
+                        contentDesc = "Mesaj gönderme penceresini kapat",
+                        icon = Icons.Default.Close,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        onClick = { showFeedbackDialog = false }
+                    )
+                }
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     }
 
     LaunchedEffect(updateStatusMessage) {
@@ -107,6 +221,12 @@ fun SettingsScreen(
 
     LaunchedEffect(logReportStatusMessage) {
         logReportStatusMessage?.let { msg ->
+            AccessibilityHelper.announce(view, msg)
+        }
+    }
+
+    LaunchedEffect(feedbackStatusMessage) {
+        feedbackStatusMessage?.let { msg ->
             AccessibilityHelper.announce(view, msg)
         }
     }
@@ -195,7 +315,6 @@ fun SettingsScreen(
                                     AccessibilityHelper.announce(view, "İndirme tamamlandı, sistem paket yükleyici açılıyor.")
                                     val installResult = ApkInstallHelper.installApk(context, apkFile)
                                     if (installResult.isSuccess) {
-                                        // Sistem paket yükleyicisinin ön plana tam geçmesi için kısa bekle, böylece ilk seferde kurulum ekranı kapanmasın
                                         delay(700)
                                         viewModel.dismissUpdateDialog()
                                     } else {
@@ -233,7 +352,7 @@ fun SettingsScreen(
         )
     }
 
-    // Güncelleme Olmadığında Açılan Erişilebilir Bilgilendirme ve Özellik Açıklaması Penceresi
+    // Güncelleme Olmadığında Açılan Erişilebilir Bilgilendirme Penceresi
     val isUpToDateDialogVisible by viewModel.isUpToDateDialogVisible.collectAsState()
     val latestChangelogText by viewModel.latestChangelogText.collectAsState()
     if (isUpToDateDialogVisible) {
@@ -344,7 +463,7 @@ fun SettingsScreen(
             )
         }
 
-        // 1. Uygulama Güncellemesi Kartı
+        // 1. Uygulama Güncellemesi ve Rehber Kartı
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -384,7 +503,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Otomatik Güncelleme Bildirimi Anahtarı (Kullanıcı isteğiyle varsayılan KAPALI)
+                // Otomatik Güncelleme Bildirimi Anahtarı (Hoş melodili bildirim desteğiyle)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -402,7 +521,7 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Yeni bir güncelleme çıktığında telefonuma bildirim gönder",
+                            text = "Yeni bir güncelleme çıktığında hoş bir melodiyle bildirim gönder",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
@@ -439,10 +558,21 @@ fun SettingsScreen(
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     onClick = { showChangeLog = true }
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                AccessibleButton(
+                    text = "Kullanım ve Kısayol Rehberi",
+                    contentDesc = "AccessGrab kullanım ve TalkBack kısayol rehberi bilgi kartını aç",
+                    icon = Icons.Default.HelpOutline,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    onClick = { showUserGuide = true }
+                )
             }
         }
 
-        // 2. Erişilebilirlik ve Titreşim Tercihleri
+        // 2. Erişilebilirlik, Yüksek Kontrast ve Titreşim Tercihleri
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -458,13 +588,55 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Dokunsal Geri Bildirim",
+                        text = "Erişilebilirlik ve Geri Bildirim",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.semantics { heading() }
                     )
                 }
                 Spacer(modifier = Modifier.height(10.dp))
+
+                // #28 — Az Gören Kullanıcılar İçin Ultra Yüksek Kontrast (Siyah-Sarı) ve Büyük Yazı Modu
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics(mergeDescendants = true) {
+                            this.contentDescription = "Ultra Yüksek Kontrast Siyah Sarı ve Dev Yazı Modu anahtarı, şu an ${if (isHighContrastLargeText) "açık" else "kapalı"}. Az gören kullanıcılar için tam siyah zemin üzerine parlak sarı dev puntolu görünüm sağlar."
+                        }
+                        .clickable {
+                            val newVal = !isHighContrastLargeText
+                            prefs.setHighContrastLargeText(newVal)
+                            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Ultra Yüksek Kontrast & Dev Yazı Modu",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Az görenler için tam siyah zemin üzerine parlak sarı renkler ve büyütülmüş yazılar kullan",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+                    Switch(
+                        checked = isHighContrastLargeText,
+                        onCheckedChange = {
+                            prefs.setHighContrastLargeText(it)
+                            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier
@@ -698,35 +870,64 @@ fun SettingsScreen(
             }
         }
 
-        // 5. İndirilen Dosyalara Hızlı Erişim
+        // 5. İletişim, Paylaşım ve İndirilenler (#37 & #38)
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.FolderOpen,
+                        imageVector = Icons.Default.Feedback,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "İndirilen Dosyalar",
+                        text = "Paylaşım ve Geliştirici İletişimi",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.semantics { heading() }
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "İndirdiğiniz videolar ve sesler telefonunuzun İndirilenler klasöründeki AccessGrab alt dizininde saklanır.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+
+                if (feedbackStatusMessage != null && !showFeedbackDialog) {
+                    Text(
+                        text = feedbackStatusMessage!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+
+                AccessibleButton(
+                    text = "Geliştiriciye Öneri / Mesaj Gönder",
+                    contentDesc = "Uygulama içinden geliştiriciye öneri, istek veya mesaj gönderme penceresini aç",
+                    icon = Icons.Default.Feedback,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = {
+                        viewModel.clearFeedbackStatus()
+                        showFeedbackDialog = true
+                    }
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+
+                AccessibleButton(
+                    text = "AccessGrab Uygulamasını Arkadaşına Paylaş",
+                    contentDesc = "AccessGrab uygulamasının indirme bağlantısını WhatsApp veya diğer uygulamalarla arkadaşına paylaş",
+                    icon = Icons.Default.Share,
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary,
+                    onClick = {
+                        if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                        viewModel.shareApp(context)
+                    }
+                )
+
                 AccessibleButton(
                     text = "İndirilenler Klasörünü Aç",
                     contentDesc = "Telefonun sistem indirme yöneticisini aç",

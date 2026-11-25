@@ -4,16 +4,18 @@ import android.app.Application
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import android.app.DownloadManager
-import android.os.Build
 import com.baverelci.accessgrab.data.AppLogger
 import com.baverelci.accessgrab.data.PreferencesManager
 import com.baverelci.accessgrab.downloader.DownloadHelper
 import com.baverelci.accessgrab.network.AccessGrabApi
+import com.baverelci.accessgrab.network.AnnouncementInfo
 import com.baverelci.accessgrab.network.ExtractRequest
 import com.baverelci.accessgrab.network.ExtractResponse
+import com.baverelci.accessgrab.network.FeedbackRequest
 import com.baverelci.accessgrab.network.FormatOption
 import com.baverelci.accessgrab.network.LogReportRequest
 import com.baverelci.accessgrab.network.SearchRequest
@@ -24,7 +26,6 @@ import com.baverelci.accessgrab.notification.UpdateNotificationHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,7 +36,12 @@ import java.util.regex.Pattern
 sealed class UiState {
     object Idle : UiState()
     data class Loading(val message: String = "Medya bilgisi alınıyor…") : UiState()
-    data class SearchResultsReady(val query: String, val results: List<SearchResultItem>) : UiState()
+    data class SearchResultsReady(
+        val query: String,
+        val results: List<SearchResultItem>,
+        val canLoadMore: Boolean = true,
+        val isLoadingMore: Boolean = false
+    ) : UiState()
     data class MediaReady(val data: ExtractResponse) : UiState()
     data class Downloading(
         val title: String,
@@ -81,9 +87,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val currentVersionName: String = try {
-        application.packageManager.getPackageInfo(application.packageName, 0).versionName ?: "1.2.0"
+        application.packageManager.getPackageInfo(application.packageName, 0).versionName ?: "2.0.0"
     } catch (_: Exception) {
-        "1.2.0"
+        "2.0.0"
     }
 
     var isWaitingForInstallPermission = false
@@ -116,7 +122,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _clipboardDetectedUrl = MutableStateFlow<String?>(null)
     val clipboardDetectedUrl: StateFlow<String?> = _clipboardDetectedUrl.asStateFlow()
 
-    // Format ve Kalite Seçimleri (v1.4.0)
+    // Format ve Kalite Seçimleri
     private val _selectedFormat = MutableStateFlow("mp4")
     val selectedFormat: StateFlow<String> = _selectedFormat.asStateFlow()
 
@@ -162,10 +168,95 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _logReportStatusMessage = MutableStateFlow<String?>(null)
     val logReportStatusMessage: StateFlow<String?> = _logReportStatusMessage.asStateFlow()
 
+    // Canlı Duyuru / Mesaj Sistemi (#43)
+    private val _activeAnnouncement = MutableStateFlow<AnnouncementInfo?>(null)
+    val activeAnnouncement: StateFlow<AnnouncementInfo?> = _activeAnnouncement.asStateFlow()
+
+    // Geliştiriciye Öneri / Mesaj Gönderme (#38)
+    private val _isSendingFeedback = MutableStateFlow(false)
+    val isSendingFeedback: StateFlow<Boolean> = _isSendingFeedback.asStateFlow()
+
+    private val _feedbackStatusMessage = MutableStateFlow<String?>(null)
+    val feedbackStatusMessage: StateFlow<String?> = _feedbackStatusMessage.asStateFlow()
+
+    fun clearFeedbackStatus() {
+        _feedbackStatusMessage.value = null
+    }
+
     init {
         AppLogger.init(application, currentVersionName)
-        // Uygulama açılışında arka planda sessizce güncelleme kontrolü
         checkForUpdates(isManual = false)
+        checkAnnouncement()
+    }
+
+    fun checkAnnouncement() {
+        viewModelScope.launch {
+            try {
+                val info = AccessGrabApi.service.getAnnouncement()
+                if (info.active && info.id.isNotBlank() && info.message.isNotBlank()) {
+                    if (info.id != prefs.getLastDismissedAnnouncementId()) {
+                        _activeAnnouncement.value = info
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun dismissAnnouncement() {
+        _activeAnnouncement.value?.let { info ->
+            prefs.setLastDismissedAnnouncementId(info.id)
+        }
+        _activeAnnouncement.value = null
+    }
+
+    fun sendUserFeedback(senderName: String, message: String, onSuccess: () -> Unit = {}) {
+        val cleanMsg = message.trim()
+        if (cleanMsg.length < 3) {
+            _feedbackStatusMessage.value = "Lütfen en az birkaç kelimelik mesaj veya önerinizi yazın."
+            return
+        }
+        if (_isSendingFeedback.value) return
+        _isSendingFeedback.value = true
+        _feedbackStatusMessage.value = "Mesajınız gönderiliyor…"
+
+        viewModelScope.launch {
+            try {
+                val req = FeedbackRequest(
+                    senderName = senderName.trim().ifBlank { "Anonim Kullanıcı" },
+                    message = cleanMsg,
+                    deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE ?: "Unknown"})",
+                    appVersion = currentVersionName
+                )
+                val res = AccessGrabApi.service.sendFeedback(req)
+                _isSendingFeedback.value = false
+                _feedbackStatusMessage.value = res.message ?: "Mesajınız ve öneriniz geliştiriciye başarıyla iletildi. Teşekkür ederiz!"
+                onSuccess()
+            } catch (e: Exception) {
+                _isSendingFeedback.value = false
+                _feedbackStatusMessage.value = "Mesaj gönderilemedi: ${e.localizedMessage ?: "Bağlantınızı kontrol edin."}"
+            }
+        }
+    }
+
+    fun shareApp(context: Context) {
+        try {
+            val shareText = buildString {
+                appendLine("AccessGrab — Görme engelliler ve TalkBack kullanıcıları için %100 erişilebilir, reklamsız sosyal medya video ve MP3 ses indiricisi!")
+                appendLine()
+                appendLine("YouTube, Instagram, TikTok, X (Twitter) ve Facebook üzerinden kelimeyle arama yapabilir, indirmeden önce canlı dinleyebilir, zil/alarm sesi yapabilir ve dahili oynatıcıda dinleyebilirsiniz.")
+                appendLine()
+                append("Doğrudan APK İndirme Bağlantısı: https://github.com/bawer-elci/AccessGrab/releases/latest/download/AccessGrab.apk")
+            }
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "AccessGrab - Erişilebilir Sosyal Medya İndiricisi")
+                putExtra(Intent.EXTRA_TEXT, shareText)
+            }
+            val chooser = Intent.createChooser(intent, "AccessGrab Uygulamasını Arkadaşına Paylaş").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+        } catch (_: Exception) {}
     }
 
     fun selectTab(index: Int) {
@@ -282,12 +373,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.value = UiState.Error("\"$query\" için sonuç bulunamadı. Lütfen farklı bir kelime deneyin.")
                 } else {
                     AppLogger.log("SEARCH_OK", "${response.results.size} sonuç bulundu ($query)")
-                    _uiState.value = UiState.SearchResultsReady(query = query, results = response.results)
+                    _uiState.value = UiState.SearchResultsReady(
+                        query = query,
+                        results = response.results,
+                        canLoadMore = response.results.size >= 8,
+                        isLoadingMore = false
+                    )
                 }
             } catch (e: Exception) {
                 AppLogger.log("SEARCH_ERR", "Arama hatası ($query)", e)
                 val errorMsg = e.localizedMessage ?: "Arama sunucusuna bağlanılamadı."
                 _uiState.value = UiState.Error("Arama hatası: $errorMsg", canRetry = true)
+            }
+        }
+    }
+
+    /**
+     * Arama sonuçlarında "Daha Fazla Sonuç Getir" (#17): 20 sonuca kadar genişletir.
+     */
+    fun loadMoreSearchResults() {
+        val currentState = _uiState.value as? UiState.SearchResultsReady ?: return
+        if (currentState.isLoadingMore || !currentState.canLoadMore) return
+
+        _uiState.value = currentState.copy(isLoadingMore = true)
+        AppLogger.log("SEARCH_MORE", "Daha fazla sonuç getiriliyor: ${currentState.query}")
+
+        viewModelScope.launch {
+            try {
+                val response = AccessGrabApi.service.searchMedia(SearchRequest(query = currentState.query, limit = 20))
+                val mergedResults = if (response.results.isNotEmpty()) response.results else currentState.results
+                _uiState.value = UiState.SearchResultsReady(
+                    query = currentState.query,
+                    results = mergedResults,
+                    canLoadMore = false,
+                    isLoadingMore = false
+                )
+                _queueFeedbackMessage.value = "\"${currentState.query}\" için toplam ${mergedResults.size} arama sonucu listelendi."
+            } catch (e: Exception) {
+                AppLogger.log("SEARCH_MORE_ERR", "Daha fazla sonuç getirilemedi (${currentState.query})", e)
+                _uiState.value = currentState.copy(isLoadingMore = false)
+                _queueFeedbackMessage.value = "Daha fazla sonuç yüklenemedi."
             }
         }
     }
@@ -490,8 +615,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Akıllı Yeniden Deneme (Smart Retry):
-     * Hata alan son indirmeyi veya son medya getirme isteğini aynı parametrelerle tekrar tetikler.
+     * Akıllı Yeniden Deneme (Smart Retry)
      */
     fun retryLastAction(context: Context) {
         val params = lastDownloadParams
@@ -543,7 +667,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _updateInfo.value = info
                     _updateStatusMessage.value = "Yeni sürüm mevcut: v${info.latestVersionName}. Güncelleme özellikleri: ${info.changelog}"
 
-                    // Bildirim gönder
+                    // Hoş melodili bildirim gönder
                     val app = getApplication<Application>()
                     if (prefs.isAutoUpdateEnabled.value && prefs.getLastNotifiedVersionCode() < info.latestVersionCode) {
                         UpdateNotificationHelper.showUpdateNotification(
