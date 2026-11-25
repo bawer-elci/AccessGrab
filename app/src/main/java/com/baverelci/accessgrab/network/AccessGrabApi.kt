@@ -77,4 +77,9 @@ object AccessGrabApi {
         val qualityParam = if (!quality.isNullOrBlank()) "&quality=$quality" else ""
         return "${BASE_URL}api/download?url=$encodedUrl&format=$format$qualityParam&key=$API_KEY"
     }
+
+    fun buildPreviewUrl(mediaUrl: String): String {
+        val encodedUrl = java.net.URLEncoder.encode(mediaUrl, "UTF-8")
+        return "${BASE_URL}api/preview?url=$encodedUrl&key=$API_KEY"
+    }
 }

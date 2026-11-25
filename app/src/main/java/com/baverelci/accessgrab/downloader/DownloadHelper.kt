@@ -145,7 +145,7 @@ object DownloadHelper {
 
                         body.byteStream().use { input ->
                             FileOutputStream(tempFile, isResuming).use { output ->
-                                val buffer = ByteArray(32768)
+                                val buffer = ByteArray(131072)
                                 var bytesRead: Int
 
                                 while (input.read(buffer).also { bytesRead = it } != -1) {

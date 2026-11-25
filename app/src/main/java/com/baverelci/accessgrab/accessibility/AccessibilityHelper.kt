@@ -1,14 +1,16 @@
 package com.baverelci.accessgrab.accessibility
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioManager
-import android.media.RingtoneManager
+import android.media.MediaPlayer
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.view.View
+import com.baverelci.accessgrab.R
 
 object AccessibilityHelper {
 
@@ -54,7 +56,7 @@ object AccessibilityHelper {
     }
 
     /**
-     * İndirme tamamlandığında uzaktan da duyulabilen hoş ve kısa bir onay sesi (bip/melodi) çalar.
+     * İndirme tamamlandığında uzaktan da duyulabilen hoş ve kısa bir onay sesi çalar.
      */
     fun playCompletionSound() {
         try {
@@ -64,21 +66,43 @@ object AccessibilityHelper {
     }
 
     /**
-     * Yeni bir güncelleme çıktığında hoş bir melodi/tonlama ile sesli uyarı verir.
+     * Duyuru ve yeni güncelleme bildirimlerinde özel bestelenmiş kristal melodi (accessgrab_chime.wav) çalar.
      */
-    fun playUpdateMelody(context: Context) {
+    fun playCustomNotificationChime(context: Context) {
         try {
-            val notifUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val ringtone = RingtoneManager.getRingtone(context.applicationContext, notifUri)
-            if (ringtone != null) {
-                ringtone.play()
-                return
+            val afd = context.applicationContext.resources.openRawResourceFd(R.raw.accessgrab_chime) ?: return
+            val mp = MediaPlayer()
+            mp.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            afd.close()
+            mp.setOnCompletionListener { player ->
+                try { player.release() } catch (_: Exception) {}
             }
+            mp.setOnErrorListener { player, _, _ ->
+                try { player.release() } catch (_: Exception) {}
+                true
+            }
+            mp.prepare()
+            mp.start()
+            return
         } catch (_: Exception) {}
+
         try {
             val toneGen = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 90)
             toneGen.startTone(ToneGenerator.TONE_PROP_BEEP2, 320)
         } catch (_: Exception) {}
+    }
+
+    /**
+     * Yeni bir güncelleme çıktığında hoş bir melodi/tonlama ile sesli uyarı verir.
+     */
+    fun playUpdateMelody(context: Context) {
+        playCustomNotificationChime(context)
     }
 
     private fun getVibrator(context: Context): Vibrator? {

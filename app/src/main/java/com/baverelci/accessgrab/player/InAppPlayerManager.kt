@@ -133,7 +133,7 @@ object InAppPlayerManager {
         saveCurrentPositionIfApplicable()
         stopInternal()
 
-        val streamUrl = AccessGrabApi.buildDownloadUrl(mediaUrl, "mp3", "128")
+        val streamUrl = AccessGrabApi.buildPreviewUrl(mediaUrl)
         val previewItem = DownloadedMediaFile(
             file = File(context.cacheDir, "Canli_Onizleme.mp3"),
             name = title,

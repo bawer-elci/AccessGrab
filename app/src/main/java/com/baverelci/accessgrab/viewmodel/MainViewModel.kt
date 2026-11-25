@@ -187,6 +187,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLogger.init(application, currentVersionName)
         checkForUpdates(isManual = false)
         checkAnnouncement()
+        startBackgroundAnnouncementPolling()
+    }
+
+    private fun startBackgroundAnnouncementPolling() {
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(45_000L)
+                checkAnnouncement()
+            }
+        }
     }
 
     fun checkAnnouncement() {
@@ -194,9 +204,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val info = AccessGrabApi.service.getAnnouncement()
                 if (info.active && info.id.isNotBlank() && info.message.isNotBlank()) {
+                    val app = getApplication<Application>()
+                    if (info.id != prefs.getLastNotifiedAnnouncementId()) {
+                        prefs.setLastNotifiedAnnouncementId(info.id)
+                        UpdateNotificationHelper.showAnnouncementNotification(
+                            context = app,
+                            title = info.title,
+                            message = info.message
+                        )
+                    }
                     if (info.id != prefs.getLastDismissedAnnouncementId()) {
                         _activeAnnouncement.value = info
                     }
+                } else {
+                    _activeAnnouncement.value = null
                 }
             } catch (_: Exception) {}
         }
@@ -510,6 +531,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AppLogger.log("DOWNLOAD_START", "İndirme başlatıldı: [$formatLabel] $title")
 
         activeDownloadJob = viewModelScope.launch {
+            var lastNotifUpdateMs = 0L
             try {
                 val result = DownloadHelper.downloadMediaDirect(
                     context = appContext,
@@ -526,14 +548,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             totalBytes = total,
                             downloadId = 0L
                         )
-                        DownloadNotificationHelper.showProgressNotification(
-                            context = appContext,
-                            title = title,
-                            format = formatLabel,
-                            progress = progress,
-                            isIndeterminate = total <= 0L && downloaded <= 0L,
-                            queueRemaining = _downloadQueue.value.size
-                        )
+                        val now = System.currentTimeMillis()
+                        if (now - lastNotifUpdateMs >= 650L || progress == 100) {
+                            lastNotifUpdateMs = now
+                            DownloadNotificationHelper.showProgressNotification(
+                                context = appContext,
+                                title = title,
+                                format = formatLabel,
+                                progress = progress,
+                                isIndeterminate = total <= 0L && downloaded <= 0L,
+                                queueRemaining = _downloadQueue.value.size
+                            )
+                        }
                     }
                 )
 
@@ -764,11 +790,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun isSupportedPlatform(url: String): Boolean {
         val u = url.lowercase()
         return u.contains("instagram.com") ||
+                u.contains("instagr.am") ||
                 u.contains("tiktok.com") ||
                 u.contains("youtube.com") ||
                 u.contains("youtu.be") ||
                 u.contains("twitter.com") ||
                 u.contains("x.com") ||
+                u.contains("t.co/") ||
+                u.contains("fxtwitter.com") ||
+                u.contains("vxtwitter.com") ||
                 u.contains("facebook.com") ||
                 u.contains("fb.watch")
     }

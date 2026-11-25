@@ -89,6 +89,14 @@ class PreferencesManager(context: Context) {
         prefs.edit().putString(KEY_DISMISSED_ANNOUNCEMENT_ID, id).apply()
     }
 
+    fun getLastNotifiedAnnouncementId(): String {
+        return prefs.getString(KEY_NOTIFIED_ANNOUNCEMENT_ID, "") ?: ""
+    }
+
+    fun setLastNotifiedAnnouncementId(id: String) {
+        prefs.edit().putString(KEY_NOTIFIED_ANNOUNCEMENT_ID, id).apply()
+    }
+
     fun getLastNotifiedVersionCode(): Int {
         return prefs.getInt(KEY_LAST_NOTIFIED_VERSION, 0)
     }
@@ -184,5 +192,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_PREV_NOTIF_SOUND_URI = "pref_prev_notif_sound_uri"
         private const val KEY_HIGH_CONTRAST_LARGE = "pref_high_contrast_large"
         private const val KEY_DISMISSED_ANNOUNCEMENT_ID = "pref_dismissed_announcement_id"
+        private const val KEY_NOTIFIED_ANNOUNCEMENT_ID = "pref_notified_announcement_id"
     }
 }

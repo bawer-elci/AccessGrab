@@ -1,15 +1,22 @@
 package com.baverelci.accessgrab
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.baverelci.accessgrab.accessibility.AccessibilityHelper
 import com.baverelci.accessgrab.accessibility.ShakeDetectorHelper
 import com.baverelci.accessgrab.downloader.ApkInstallHelper
+import com.baverelci.accessgrab.notification.BackgroundSyncReceiver
+import com.baverelci.accessgrab.notification.UpdateNotificationHelper
 import com.baverelci.accessgrab.player.InAppPlayerManager
 import com.baverelci.accessgrab.ui.screens.MainScreen
 import com.baverelci.accessgrab.ui.theme.AccessGrabTheme
@@ -23,6 +30,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Özel melodili bildirim kanallarını oluştur ve arka plan bildirim servisini zamanla
+        UpdateNotificationHelper.createNotificationChannels(this)
+        BackgroundSyncReceiver.schedulePeriodicSync(this)
+
+        // Android 13+ (API 33+) cihazlarda durum çubuğu bildirim iznini kontrol et
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
+
         shakeDetector = ShakeDetectorHelper(this) {
             if (viewModel.prefs.isShakeToPlayPauseEnabled.value && InAppPlayerManager.state.value.isActive) {
                 val nowPlaying = InAppPlayerManager.togglePlayPause()
@@ -34,7 +52,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Sosyal medya paylaşım menüsünden (Instagram, TikTok, YouTube vb.) gelen linki yakala
+        // Sosyal medya paylaşım menüsünden (Instagram, TikTok, YouTube, X vb.) gelen linki yakala
         handleIntent(intent)
 
         setContent {
@@ -54,8 +72,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         shakeDetector?.start()
-        // Uygulama ön plana geldiğinde panoyu kontrol et
+        // Uygulama ön plana geldiğinde panoyu ve canlı duyuruyu kontrol et
         viewModel.checkClipboard(this)
+        viewModel.checkAnnouncement()
 
         // Eğer kullanıcı ayarlar ekranından izin verip döndüyse ve indirilmiş güncelleme hazırsa doğrudan kur
         if (viewModel.isWaitingForInstallPermission && ApkInstallHelper.canInstallPackages(this)) {

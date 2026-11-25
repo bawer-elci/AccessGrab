@@ -10,9 +10,20 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
+            version = "v2.1.0",
+            date = "26 Kasım 2026",
+            isLatest = true,
+            highlights = listOf(
+                "X (Twitter) Hızlı İndirme Motoru & Kısa Link (t.co) Desteği: X / Twitter videoları ve GIF'leri için doğrudan yüksek hızlı CDN motoru ve süre ayrıştırma düzeltmesi.",
+                "3 Kat Daha Hızlı İndirme & 1 Saniyede Canlı Önizleme: Çoklu iş parçacıklı (8x paralel segment) indirme motoru, 128 KB yüksek hızlı tampon, çok çekirdekli MP3 dönüştürme ve beklemeden başlayan Canlı Önizleme akışı.",
+                "Uygulama Kapalıyken Bile Özel Melodili Arka Plan Bildirimleri: Uygulama açık olmasa bile yeni duyuru veya güncelleme geldiğinde özel bestelenmiş kristal bildirim sesiyle durum çubuğuna bildirim düşmesi.",
+                "Geliştirici Bildirim ve Mesaj Yönetim Paneli entegrasyonu."
+            )
+        ),
+        ReleaseLog(
             version = "v2.0.0",
             date = "25 Kasım 2026",
-            isLatest = true,
+            isLatest = false,
             highlights = listOf(
                 "Kütüphane'de 'Tümünü Sil' & Zil/Alarm/Bildirim Sesi Yap: Kütüphanedeki tüm medyaları onay penceresiyle tek dokunuşla temizleme ve 'Diğer Seçenekler' menüsünden doğrudan Zil Sesi, Alarm Sesi ve Bildirim Sesi ayarlayıp kaldırma.",
                 "%200 Ekstra Ses Güçlendirici & 30 Sn Zil Sesi Kırpıcı: Oynatıcı penceresinde sesi donanımsal olarak %200'e kadar artırma ve çalan şarkının tam o saniyesinden 30 saniyelik bölümü kesip doğrudan telefon zil sesi yapma.",
