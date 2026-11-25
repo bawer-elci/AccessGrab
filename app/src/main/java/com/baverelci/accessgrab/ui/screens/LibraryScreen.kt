@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.AlarmOff
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FolderOpen
@@ -196,6 +197,18 @@ fun LibraryScreen(
         }
     }
 
+    fun handleSplit30SecForWhatsApp(item: DownloadedMediaFile) {
+        val res = MediaFileManager.splitVideoInto30SecAndShare(context, item.file)
+        if (res.isSuccess) {
+            if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+            feedbackMessage = res.getOrNull()
+            syncFiles()
+        } else {
+            if (isHaptic) AccessibilityHelper.vibrateError(context)
+            feedbackMessage = res.exceptionOrNull()?.message
+        }
+    }
+
     // "Tümünü Sil" Onay Diyaloğu
     if (showDeleteAllConfirm) {
         val totalCount = files.size
@@ -323,6 +336,22 @@ fun LibraryScreen(
                             }
                         }
                     )
+
+                    // #76 — WhatsApp Durumu İçin Videoyu 30 Saniyelik Parçalara Bölerek Paylaşma
+                    if (!target.isAudio) {
+                        AccessibleButton(
+                            text = "WhatsApp Durumu İçin 30 Sn Parçalara Böl ve Paylaş",
+                            contentDesc = "${target.name} videosunu WhatsApp Durum için 30 saniyelik parçalara böl ve paylaş",
+                            icon = Icons.Default.ContentCut,
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            contentColor = MaterialTheme.colorScheme.primary,
+                            onClick = {
+                                val item = target
+                                fileForOptionsMenu = null
+                                handleSplit30SecForWhatsApp(item)
+                            }
+                        )
+                    }
 
                     // 1. Zil Sesi Yap / Kaldır
                     if (!isThisRingtone) {
@@ -727,6 +756,9 @@ fun LibraryScreen(
                                 feedbackMessage = "Paylaşım ekranı başlatılamadı."
                             }
                         },
+                        onSplit30SecWhatsApp = if (!item.isAudio) {
+                            { handleSplit30SecForWhatsApp(item) }
+                        } else null,
                         onDelete = {
                             fileToDelete = item
                         }
@@ -755,6 +787,7 @@ fun MediaFileItemCard(
     onRemoveNotificationSound: () -> Unit,
     onOpenExternal: (() -> Unit)? = null,
     onShare: () -> Unit,
+    onSplit30SecWhatsApp: (() -> Unit)? = null,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -819,6 +852,14 @@ fun MediaFileItemCard(
                                     true
                                 }
                             )
+                            if (onSplit30SecWhatsApp != null) {
+                                actions.add(
+                                    CustomAccessibilityAction(label = "WhatsApp Durumu İçin 30 Sn Böl ve Paylaş") {
+                                        onSplit30SecWhatsApp()
+                                        true
+                                    }
+                                )
+                            }
                             if (!isCurrentRingtone) {
                                 actions.add(
                                     CustomAccessibilityAction(label = "Zil Sesi Yap") {

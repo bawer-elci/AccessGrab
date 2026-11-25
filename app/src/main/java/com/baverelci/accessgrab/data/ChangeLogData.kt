@@ -10,9 +10,21 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v2.1.0",
+            version = "v2.2.0",
             date = "26 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Arama Sonuçlarında Doğrudan Görüntülü Video Oynatıcı Penceresi: Arama sonuçlarında bir videoya dokunduğunuzda 1 saniyede açılan görüntülü oynatıcı penceresi, ileri/geri sarma, duraklat/oynat, pencereden doğrudan MP4/MP3 indirme ve yarıda kalan videoya kaldığı saniyeden devam etme.",
+                "YouTube Oynatma Listesi (Playlist) Toplu İndirme (#58): Oynatma listesi bağlantılarındaki tüm videoları listeleme ve 'Tümünü MP3 İndir' / 'Tümünü MP4 İndir' ile toplu indirme.",
+                "Videonun Altyazısını / Konuşma Metnini Okuma Bilgi Kartı (#60): Videodaki konuşma metnini ve altyazıları tek dokunuşla bilgi kartında okuma ve panoya kopyalama.",
+                "İzleme ve İndirme Geçmişim (#71) & Günün Trendleri / Popüler Müzikler (#73): İzlediğiniz veya indirdiğiniz videoları geçmişten tekrar açma ve günün trendlerini tek dokunuşla listeleme.",
+                "WhatsApp Durumu İçin Videoyu 30 Saniyelik Parçalara Bölerek Paylaşma (#76) ve 8 saniyede anlık arka plan bildirim servisi."
+            )
+        ),
+        ReleaseLog(
+            version = "v2.1.0",
+            date = "26 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "X (Twitter) Hızlı İndirme Motoru & Kısa Link (t.co) Desteği: X / Twitter videoları ve GIF'leri için doğrudan yüksek hızlı CDN motoru ve süre ayrıştırma düzeltmesi.",
                 "3 Kat Daha Hızlı İndirme & 1 Saniyede Canlı Önizleme: Çoklu iş parçacıklı (8x paralel segment) indirme motoru, 128 KB yüksek hızlı tampon, çok çekirdekli MP3 dönüştürme ve beklemeden başlayan Canlı Önizleme akışı.",

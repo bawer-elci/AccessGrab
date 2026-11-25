@@ -67,6 +67,12 @@
             android:name=".notification.PlayerActionReceiver"
             android:exported="false" />
 
+        <!-- Uygulama Arka Planda veya Kapalıyken Anlık Bildirim Senkronizasyon Servisi -->
+        <service
+            android:name=".notification.NotificationSyncService"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- Uygulama Kapalıyken Bile Arka Planda Duyuru ve Güncelleme Bildirimi Alıcısı -->
         <receiver
             android:name=".notification.BackgroundSyncReceiver"

@@ -22,12 +22,9 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val appContext = context.applicationContext
 
-        // Telefon yeniden başladığında veya paket güncellendiğinde periyodik alarmı yeniden kur
-        if (intent?.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent?.action == Intent.ACTION_MY_PACKAGE_REPLACED
-        ) {
-            schedulePeriodicSync(appContext)
-        }
+        schedulePeriodicSync(appContext)
+        NotificationSyncService.startServiceSafely(appContext)
+        NotificationSyncService.scheduleRestartAlarm(appContext, 25_000L)
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -60,8 +57,7 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
 
-                // Her 15 dakikada bir pil dostu arka plan kontrolü (Uygulama kapalı olsa bile çalışır)
-                val triggerAt = SystemClock.elapsedRealtime() + (3 * 60 * 1000L)
+                val triggerAt = SystemClock.elapsedRealtime() + 20_000L
                 alarmManager.setInexactRepeating(
                     AlarmManager.ELAPSED_REALTIME_WAKEUP,
                     triggerAt,

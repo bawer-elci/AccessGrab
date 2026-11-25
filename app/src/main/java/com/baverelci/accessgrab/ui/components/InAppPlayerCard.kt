@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -71,12 +73,14 @@ fun InAppPlayerCard(
     onCycleSpeed: () -> Unit,
     onCycleVolumeBoost: (() -> Unit)? = null,
     onClip30SecRingtone: (() -> Unit)? = null,
+    onDownloadRemoteMp4: ((title: String, url: String) -> Unit)? = null,
+    onDownloadRemoteMp3: ((title: String, url: String) -> Unit)? = null,
     onStop: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val file = playerState.currentFile ?: return
     val statusText = when {
-        playerState.isBuffering -> "Canlı Önizleme Hazırlanıyor…"
+        playerState.isBuffering -> "Video Açılıyor…"
         playerState.isPlaying -> "Oynatılıyor"
         else -> "Duraklatıldı"
     }
@@ -91,7 +95,7 @@ fun InAppPlayerCard(
     }
 
     val modeTitle = when {
-        playerState.isRemotePreview -> "Canlı Önizleme Oynatıcısı"
+        playerState.isRemotePreview -> "Görüntülü Canlı Video Oynatıcı"
         file.isAudio -> "MP3 Ses Oynatıcı Penceresi"
         else -> "MP4 Video Oynatıcı Penceresi"
     }
@@ -157,6 +161,25 @@ fun InAppPlayerCard(
                                     }
                                 )
                             }
+                            val remoteUrl = playerState.remoteMediaUrl
+                            if (playerState.isRemotePreview && !remoteUrl.isNullOrBlank()) {
+                                if (onDownloadRemoteMp4 != null) {
+                                    actions.add(
+                                        CustomAccessibilityAction("Videoyu İndir (MP4)") {
+                                            onDownloadRemoteMp4(file.name, remoteUrl)
+                                            true
+                                        }
+                                    )
+                                }
+                                if (onDownloadRemoteMp3 != null) {
+                                    actions.add(
+                                        CustomAccessibilityAction("Sesi İndir (MP3)") {
+                                            onDownloadRemoteMp3(file.name, remoteUrl)
+                                            true
+                                        }
+                                    )
+                                }
+                            }
                             if (!playerState.isRemotePreview && onClip30SecRingtone != null) {
                                 actions.add(
                                     CustomAccessibilityAction("Bu Saniyeden 30 Saniye Kesip Zil Sesi Yap") {
@@ -213,8 +236,8 @@ fun InAppPlayerCard(
                     }
                 }
 
-                // 2. Görüntü Alanı
-                if (!file.isAudio && !playerState.isRemotePreview) {
+                // 2. Görüntü Alanı (Hem İndirilen Videolarda Hem Arama/Canlı Videolarda Gerçek SurfaceView)
+                if (!file.isAudio) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -251,6 +274,12 @@ fun InAppPlayerCard(
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
+                        if (playerState.isBuffering) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
                     }
                 } else {
                     Box(
@@ -328,7 +357,7 @@ fun InAppPlayerCard(
                     }
                 }
 
-                // 4. Erişilebilir Büyük Oynatıcı Düğmeleri
+                // 4. Erişilebilir Büyük Oynatıcı Düğmeleri (Duraklat / Oynat, 10 Sn Geri, 10 Sn İleri)
                 AccessibleButton(
                     text = if (playerState.isPlaying) "Duraklat" else "Oynat",
                     contentDesc = if (playerState.isPlaying) "Medyayı duraklat (${playerState.formattedPosition})" else "Medyayı oynatmaya devam et",
@@ -364,6 +393,38 @@ fun InAppPlayerCard(
                         enabled = !playerState.isBuffering,
                         onClick = onSeekForward
                     )
+                }
+
+                // 5. Arama / Canlı Video Penceresinin İçinden Doğrudan İndir Butonları (MP4 Video & MP3 Ses)
+                val remoteUrl = playerState.remoteMediaUrl
+                if (playerState.isRemotePreview && !remoteUrl.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (onDownloadRemoteMp4 != null) {
+                            AccessibleButton(
+                                text = "Videoyu İndir (MP4)",
+                                contentDesc = "${file.name} videosunu MP4 olarak cihazına indir",
+                                icon = Icons.Default.VideoLibrary,
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onDownloadRemoteMp4(file.name, remoteUrl) }
+                            )
+                        }
+                        if (onDownloadRemoteMp3 != null) {
+                            AccessibleButton(
+                                text = "Sesi İndir (MP3)",
+                                contentDesc = "${file.name} medyasını MP3 ses olarak cihazına indir",
+                                icon = Icons.Default.Download,
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                                contentColor = MaterialTheme.colorScheme.onSecondary,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onDownloadRemoteMp3(file.name, remoteUrl) }
+                            )
+                        }
+                    }
                 }
 
                 // Hızlandır ve %200 Ses Güçlendirici Satırı

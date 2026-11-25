@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +46,8 @@ fun QualitySelectorCard(
     onStartDownload: () -> Unit,
     onQuickDownload: ((format: String, quality: String) -> Unit)? = null,
     onPreviewListen: (() -> Unit)? = null,
+    onReadTranscript: (() -> Unit)? = null,
+    isFetchingTranscript: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -60,12 +63,24 @@ fun QualitySelectorCard(
 
         if (onPreviewListen != null) {
             AccessibleButton(
-                text = "İndirmeden Önce Önizle / Dinle",
-                contentDesc = "${media.title} medyasını telefona indirmeden önce canlı dinle",
+                text = "Videoyu Pencerede Oynat (İzle / Dinle)",
+                contentDesc = "${media.title} medyasını telefona indirmeden önce görüntülü oynatıcı penceresinde aç",
                 icon = Icons.Default.Headphones,
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.tertiary,
                 onClick = onPreviewListen
+            )
+        }
+
+        if (onReadTranscript != null) {
+            AccessibleButton(
+                text = if (isFetchingTranscript) "Konuşma Metni Hazırlanıyor…" else "Videonun Konuşma Metnini / Altyazısını Oku",
+                contentDesc = "${media.title} videosunun konuşma metnini ve altyazısını bilgi kartında oku",
+                icon = Icons.Default.Subtitles,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.secondary,
+                enabled = !isFetchingTranscript,
+                onClick = onReadTranscript
             )
         }
 

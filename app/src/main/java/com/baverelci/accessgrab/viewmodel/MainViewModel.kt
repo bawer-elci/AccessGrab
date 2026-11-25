@@ -20,6 +20,7 @@ import com.baverelci.accessgrab.network.FormatOption
 import com.baverelci.accessgrab.network.LogReportRequest
 import com.baverelci.accessgrab.network.SearchRequest
 import com.baverelci.accessgrab.network.SearchResultItem
+import com.baverelci.accessgrab.network.TranscriptResponse
 import com.baverelci.accessgrab.network.UpdateInfo
 import com.baverelci.accessgrab.notification.DownloadNotificationHelper
 import com.baverelci.accessgrab.notification.UpdateNotificationHelper
@@ -179,6 +180,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _feedbackStatusMessage = MutableStateFlow<String?>(null)
     val feedbackStatusMessage: StateFlow<String?> = _feedbackStatusMessage.asStateFlow()
 
+    // #60 — Videonun Altyazısını / Konuşma Metnini Okuma Bilgi Kartı
+    private val _activeTranscript = MutableStateFlow<TranscriptResponse?>(null)
+    val activeTranscript: StateFlow<TranscriptResponse?> = _activeTranscript.asStateFlow()
+
+    private val _isFetchingTranscript = MutableStateFlow(false)
+    val isFetchingTranscript: StateFlow<Boolean> = _isFetchingTranscript.asStateFlow()
+
+    fun dismissTranscript() {
+        _activeTranscript.value = null
+    }
+
+    fun fetchVideoTranscript(mediaUrl: String) {
+        if (_isFetchingTranscript.value) return
+        _isFetchingTranscript.value = true
+        _queueFeedbackMessage.value = "Videonun konuşma metni ve altyazısı hazırlanıyor…"
+        viewModelScope.launch {
+            try {
+                val res = AccessGrabApi.service.getTranscript(ExtractRequest(url = mediaUrl))
+                _isFetchingTranscript.value = false
+                _activeTranscript.value = res
+            } catch (e: Exception) {
+                _isFetchingTranscript.value = false
+                _queueFeedbackMessage.value = "Altyazı metni alınamadı: ${e.localizedMessage ?: "Bağlantınızı kontrol edin."}"
+            }
+        }
+    }
+
     fun clearFeedbackStatus() {
         _feedbackStatusMessage.value = null
     }
@@ -193,7 +221,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startBackgroundAnnouncementPolling() {
         viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(45_000L)
+                kotlinx.coroutines.delay(8_000L)
                 checkAnnouncement()
             }
         }
@@ -262,15 +290,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun shareApp(context: Context) {
         try {
             val shareText = buildString {
-                appendLine("AccessGrab — Görme engelliler ve TalkBack kullanıcıları için %100 erişilebilir, reklamsız sosyal medya video ve MP3 ses indiricisi!")
+                appendLine("AccessGrab — Reklamsız, ultra hızlı sosyal medya video ve MP3 ses indiricisi & dahili medya oynatıcısı!")
                 appendLine()
-                appendLine("YouTube, Instagram, TikTok, X (Twitter) ve Facebook üzerinden kelimeyle arama yapabilir, indirmeden önce canlı dinleyebilir, zil/alarm sesi yapabilir ve dahili oynatıcıda dinleyebilirsiniz.")
+                appendLine("YouTube, Instagram, TikTok, X (Twitter) ve Facebook üzerinden kelimeyle veya sesle arama yapabilir, videoları indirmeden pencerede izleyebilir, MP4 video veya MP3 ses olarak indirebilir, şarkılardan 30 sn zil sesi kesebilir ve ekran kapalıyken bile dinleyebilirsiniz.")
                 appendLine()
-                append("Doğrudan APK İndirme Bağlantısı: https://github.com/bawer-elci/AccessGrab/releases/latest/download/AccessGrab.apk")
+                appendLine("Her Zaman En Güncel Doğrudan APK İndirme Bağlantısı:")
+                appendLine("https://baverelci.com.tr/accessgrab/api/download-apk")
+                append("Alternatif Bağlantı: https://github.com/bawer-elci/AccessGrab/releases/latest/download/AccessGrab.apk")
             }
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, "AccessGrab - Erişilebilir Sosyal Medya İndiricisi")
+                putExtra(Intent.EXTRA_SUBJECT, "AccessGrab - Sosyal Medya Video & MP3 İndiricisi")
                 putExtra(Intent.EXTRA_TEXT, shareText)
             }
             val chooser = Intent.createChooser(intent, "AccessGrab Uygulamasını Arkadaşına Paylaş").apply {
@@ -352,6 +382,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val cleanUrl = allUrls.firstOrNull() ?: rawUrl
 
+        // #58 — Eğer girilen bağlantı bir YouTube Oynatma Listesi (Playlist) ise tüm listeyi çözümle
+        if (cleanUrl.contains("youtube.com/playlist", ignoreCase = true) ||
+            ((cleanUrl.contains("youtube.com", ignoreCase = true) || cleanUrl.contains("youtu.be", ignoreCase = true)) &&
+                cleanUrl.contains("list=", ignoreCase = true) && !cleanUrl.contains("watch?v=", ignoreCase = true))
+        ) {
+            fetchPlaylistItems(cleanUrl)
+            return
+        }
+
         // Kullanıcı birden fazla linki aynı anda yapıştırdıysa kalanları toplu indirme kuyruğuna hazırla
         pendingBatchUrls.clear()
         if (allUrls.size > 1) {
@@ -381,6 +420,84 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = UiState.Error("Hata: $errorMsg", canRetry = true)
             }
         }
+    }
+
+    private fun fetchPlaylistItems(playlistUrl: String) {
+        _uiState.value = UiState.Loading("Oynatma listesi videoları getiriliyor…")
+        AppLogger.log("PLAYLIST_START", "Oynatma listesi inceleniyor: $playlistUrl")
+
+        viewModelScope.launch {
+            try {
+                val response = AccessGrabApi.service.extractPlaylist(ExtractRequest(url = playlistUrl))
+                if (response.results.isEmpty()) {
+                    _uiState.value = UiState.Error("Oynatma listesinde açık video bulunamadı.")
+                } else {
+                    _uiState.value = UiState.SearchResultsReady(
+                        query = response.query,
+                        results = response.results,
+                        canLoadMore = false,
+                        isLoadingMore = false
+                    )
+                }
+            } catch (e: Exception) {
+                val errorMsg = e.localizedMessage ?: "Oynatma listesi alınamadı."
+                _uiState.value = UiState.Error("Hata: $errorMsg", canRetry = true)
+            }
+        }
+    }
+
+    /**
+     * #73 — Popüler Müzikler ve Günün Trendlerini Tek Dokunuşla Listele
+     */
+    fun loadTrendingMusic() {
+        _uiState.value = UiState.Loading("Günün Trendleri ve Popüler Müzikler getiriliyor…")
+        viewModelScope.launch {
+            try {
+                val response = AccessGrabApi.service.searchMedia(
+                    SearchRequest(query = "Türkiye popüler şarkılar yeni klipler 2026", limit = 15)
+                )
+                if (response.results.isEmpty()) {
+                    _uiState.value = UiState.Error("Popüler müzik listesi şu an alınamadı.")
+                } else {
+                    _uiState.value = UiState.SearchResultsReady(
+                        query = "Günün Trendleri ve Popüler Müzikler",
+                        results = response.results,
+                        canLoadMore = false,
+                        isLoadingMore = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error("Trend listesi alınamadı: ${e.localizedMessage}", canRetry = true)
+            }
+        }
+    }
+
+    /**
+     * #58 — Oynatma Listesindeki veya Arama Sonuçlarındaki Tüm Medyaları Sırayla Toplu İndir
+     */
+    fun downloadAllCurrentResults(context: Context, format: String, quality: String) {
+        val currentState = _uiState.value as? UiState.SearchResultsReady ?: return
+        val items = currentState.results
+        if (items.isEmpty()) return
+
+        val first = items.first()
+        val rest = items.drop(1).map {
+            QueuedDownloadItem(
+                mediaUrl = it.url,
+                format = format,
+                title = it.title,
+                quality = quality
+            )
+        }
+        _downloadQueue.value = _downloadQueue.value + rest
+        _queueFeedbackMessage.value = "Toplam ${items.size} adet medya sıraya alındı. İlk medya indiriliyor: ${first.title}"
+        startTrackedDownload(
+            context = context,
+            mediaUrl = first.url,
+            format = format,
+            title = first.title,
+            quality = quality
+        )
     }
 
     private fun searchMediaByQuery(query: String) {
@@ -509,6 +626,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         lastDownloadParams = LastDownloadParams(mediaUrl, format, title, quality)
         val formatLabel = if (!quality.isNullOrBlank()) "${format.uppercase()} ($quality)" else format.uppercase()
+
+        // İndirme geçmişine kaydet (#71)
+        prefs.addWatchOrDownloadHistory(title = title, url = mediaUrl, actionType = "İndirildi ($formatLabel)")
 
         _uiState.value = UiState.Downloading(
             title = title,

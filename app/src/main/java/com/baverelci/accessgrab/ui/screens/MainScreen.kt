@@ -1,6 +1,10 @@
 package com.baverelci.accessgrab.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,9 +21,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -36,6 +46,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,9 +58,12 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.baverelci.accessgrab.R
@@ -80,6 +96,7 @@ fun MainScreen(
     val uiState by viewModel.uiState.collectAsState()
     val queueFeedback by viewModel.queueFeedbackMessage.collectAsState()
     val activeAnnouncement by viewModel.activeAnnouncement.collectAsState()
+    val activeTranscript by viewModel.activeTranscript.collectAsState()
 
     // Sunucudan Gelen Canlı Duyuru / Mesaj Penceresi (#43)
     if (activeAnnouncement != null) {
@@ -131,6 +148,76 @@ fun MainScreen(
         )
     }
 
+    // #60 — Videonun Konuşma Metni / Altyazı Bilgi Kartı
+    if (activeTranscript != null) {
+        val tr = activeTranscript!!
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissTranscript() },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Subtitles,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Konuşma Metni & Altyazı",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.semantics { heading() }
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "${tr.title} (${tr.language})",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = tr.transcript,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    AccessibleButton(
+                        text = "Metni Panoya Kopyala",
+                        contentDesc = "Konuşma metnini panoya kopyala",
+                        icon = Icons.Default.ContentCopy,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        onClick = {
+                            try {
+                                val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                cb?.setPrimaryClip(ClipData.newPlainText(tr.title, tr.transcript))
+                                if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                                AccessibilityHelper.announce(view, "Konuşma metni panoya kopyalandı.")
+                            } catch (_: Exception) {}
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                AccessibleButton(
+                    text = "Kapat",
+                    contentDesc = "Konuşma metni bilgi kartını kapat",
+                    icon = Icons.Default.Close,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = { viewModel.dismissTranscript() }
+                )
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
+
     LaunchedEffect(queueFeedback) {
         queueFeedback?.let { msg ->
             AccessibilityHelper.announce(view, msg)
@@ -154,11 +241,11 @@ fun MainScreen(
             }
             is UiState.SearchResultsReady -> {
                 if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
-                AccessibilityHelper.announce(view, "\"${state.query}\" için ${state.results.size} sonuç bulundu.")
+                AccessibilityHelper.announce(view, "\"${state.query}\" için ${state.results.size} sonuç bulundu. Bir videoya dokunarak doğrudan oynatıcı penceresinde izleyebilirsiniz.")
             }
             is UiState.MediaReady -> {
                 if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
-                val msg = "${state.data.platform} medyası hazır: ${state.data.title}. MP4 video veya MP3 ses olarak indirebilirsiniz."
+                val msg = "${state.data.platform} medyası hazır: ${state.data.title}. Pencerede izleyebilir veya MP4/MP3 olarak indirebilirsiniz."
                 AccessibilityHelper.announce(view, msg)
             }
             is UiState.Downloading -> {
@@ -193,7 +280,6 @@ fun MainScreen(
                     this.contentDescription = "Ana Gezinme Çubuğu"
                 }
             ) {
-                // 1. İndir Sekmesi
                 NavigationBarItem(
                     selected = currentTab == 0,
                     onClick = { viewModel.selectTab(0) },
@@ -209,7 +295,6 @@ fun MainScreen(
                     }
                 )
 
-                // 2. Kütüphanem Sekmesi
                 NavigationBarItem(
                     selected = currentTab == 1,
                     onClick = { viewModel.selectTab(1) },
@@ -225,7 +310,6 @@ fun MainScreen(
                     }
                 )
 
-                // 3. Ayarlar Sekmesi
                 NavigationBarItem(
                     selected = currentTab == 2,
                     onClick = { viewModel.selectTab(2) },
@@ -241,7 +325,6 @@ fun MainScreen(
                     }
                 )
 
-                // 4. Hakkında Sekmesi
                 NavigationBarItem(
                     selected = currentTab == 3,
                     onClick = { viewModel.selectTab(3) },
@@ -296,13 +379,133 @@ fun DownloaderContent(
     val clipboardUrl by viewModel.clipboardDetectedUrl.collectAsState()
     val downloadQueue by viewModel.downloadQueue.collectAsState()
     val playerState by InAppPlayerManager.state.collectAsState()
+    val historyItems by viewModel.prefs.historyItems.collectAsState()
+    val isFetchingTranscript by viewModel.isFetchingTranscript.collectAsState()
+
+    var showHistoryDialog by remember { mutableStateOf(false) }
+
+    fun openVideoPopupPlayer(title: String, mediaUrl: String) {
+        if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+        val resumedMs = InAppPlayerManager.playRemotePreview(
+            title = title,
+            mediaUrl = mediaUrl,
+            context = context,
+            prefs = viewModel.prefs
+        )
+        if (resumedMs > 4000) {
+            val mins = (resumedMs / 1000) / 60
+            val secs = (resumedMs / 1000) % 60
+            AccessibilityHelper.announce(
+                view,
+                "$title kaldığınız yerden devam ediyor (${String.format("%02d:%02d", mins, secs)})."
+            )
+        } else {
+            AccessibilityHelper.announce(view, "$title video oynatıcı penceresinde açılıyor…")
+        }
+    }
+
+    // #71 — İzleme ve İndirme Geçmişim Diyaloğu
+    if (showHistoryDialog) {
+        AlertDialog(
+            onDismissRequest = { showHistoryDialog = false },
+            title = {
+                Text(
+                    text = "İzleme ve İndirme Geçmişim (${historyItems.size})",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { heading() }
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (historyItems.isEmpty()) {
+                        Text(
+                            text = "Henüz izlediğiniz veya indirdiğiniz bir medya geçmişi bulunmuyor.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    } else {
+                        AccessibleButton(
+                            text = "Geçmişi Temizle",
+                            contentDesc = "Tüm izleme ve indirme geçmişini temizle",
+                            icon = Icons.Default.DeleteForever,
+                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
+                            contentColor = MaterialTheme.colorScheme.error,
+                            onClick = {
+                                viewModel.prefs.clearWatchOrDownloadHistory()
+                                if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                                AccessibilityHelper.announce(view, "İzleme ve indirme geçmişi temizlendi.")
+                            }
+                        )
+
+                        historyItems.forEach { entry ->
+                            val savedPos = viewModel.prefs.getSavedPlaybackPosition(entry.title)
+                            val resumeBadge = if (savedPos > 4000) {
+                                val mins = (savedPos / 1000) / 60
+                                val secs = (savedPos / 1000) % 60
+                                " • Kaldığınız yer: ${String.format("%02d:%02d", mins, secs)}"
+                            } else ""
+                            Card(
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showHistoryDialog = false
+                                        openVideoPopupPlayer(entry.title, entry.url)
+                                    }
+                                    .semantics {
+                                        this.role = Role.Button
+                                        this.contentDescription = "${entry.title}. ${entry.actionType}, ${entry.timestamp}$resumeBadge. Pencerede oynatmak için çift dokunun."
+                                    }
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .padding(12.dp)
+                                        .clearAndSetSemantics { }
+                                ) {
+                                    Text(
+                                        text = entry.title,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "${entry.actionType} • ${entry.timestamp}$resumeBadge",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                AccessibleButton(
+                    text = "Kapat",
+                    contentDesc = "Geçmiş penceresini kapat",
+                    icon = Icons.Default.Close,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    onClick = { showHistoryDialog = false }
+                )
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Başlık ve Logo Alanı
         Row(
@@ -324,14 +527,14 @@ fun DownloaderContent(
                     modifier = Modifier.semantics { heading() }
                 )
                 Text(
-                    text = "Erişilebilir Sosyal Medya İndiricisi",
+                    text = "Sosyal Medya Video & MP3 İndiricisi",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                 )
             }
         }
 
-        // Canlı Önizleme veya Oynatıcı Aktifse İndir Sekmesinde de Oynatıcıyı Göster (#8)
+        // Arama / Canlı Video Oynatıcı Penceresi (Görüntülü + İleri/Geri Sar + Duraklat/Oynat + İndir + Kaldığı Yerden Devam Et)
         if (playerState.isActive && playerState.isRemotePreview) {
             InAppPlayerCard(
                 playerState = playerState,
@@ -359,9 +562,33 @@ fun DownloaderContent(
                     val newBoost = InAppPlayerManager.cycleVolumeBoost()
                     AccessibilityHelper.announce(view, "Ses gücü: %$newBoost")
                 },
+                onDownloadRemoteMp4 = { title, url ->
+                    InAppPlayerManager.stop()
+                    viewModel.selectFormat("mp4")
+                    viewModel.selectQuality("720")
+                    viewModel.startTrackedDownload(
+                        context = context,
+                        mediaUrl = url,
+                        format = "mp4",
+                        title = title,
+                        quality = "720"
+                    )
+                },
+                onDownloadRemoteMp3 = { title, url ->
+                    InAppPlayerManager.stop()
+                    viewModel.selectFormat("mp3")
+                    viewModel.selectQuality("192")
+                    viewModel.startTrackedDownload(
+                        context = context,
+                        mediaUrl = url,
+                        format = "mp3",
+                        title = title,
+                        quality = "192"
+                    )
+                },
                 onStop = {
                     InAppPlayerManager.stop()
-                    AccessibilityHelper.announce(view, "Canlı önizleme kapatıldı")
+                    AccessibilityHelper.announce(view, "Video oynatıcı penceresi kapatıldı")
                 }
             )
         }
@@ -387,6 +614,37 @@ fun DownloaderContent(
             },
             isLoading = uiState is UiState.Loading
         )
+
+        // #73 — Popüler Müzikler / Günün Trendleri & #71 — İzleme ve İndirme Geçmişim Hızlı Erişim Satırı
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            AccessibleButton(
+                text = "Günün Trendleri",
+                contentDesc = "Günün trendlerini ve en popüler müzikleri tek dokunuşla listele",
+                icon = Icons.Default.TrendingUp,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
+                    viewModel.loadTrendingMusic()
+                }
+            )
+
+            AccessibleButton(
+                text = "Geçmişim (${historyItems.size})",
+                contentDesc = "İzleme ve indirme geçmişim listesini aç (${historyItems.size} kayıt)",
+                icon = Icons.Default.History,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    showHistoryDialog = true
+                }
+            )
+        }
 
         // Yükleniyor Göstergesi
         if (uiState is UiState.Loading) {
@@ -433,7 +691,7 @@ fun DownloaderContent(
             )
         }
 
-        // Doğrudan Kelimeyle Arama Sonuçları Listesi (#8 Canlı Önizle & #17 Daha Fazla Sonuç Getir)
+        // Arama Sonuçları ve Oynatma Listesi (Playlist) Kartı
         if (uiState is UiState.SearchResultsReady) {
             val searchState = uiState as UiState.SearchResultsReady
             SearchResultsCard(
@@ -456,13 +714,16 @@ fun DownloaderContent(
                     )
                 },
                 onPreviewListen = { item ->
-                    if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
-                    AccessibilityHelper.announce(view, "${item.title} canlı önizleme başlatılıyor…")
-                    InAppPlayerManager.playRemotePreview(
-                        title = item.title,
-                        mediaUrl = item.url,
-                        context = context
-                    )
+                    openVideoPopupPlayer(item.title, item.url)
+                },
+                onDownloadAllList = { fmt, qual ->
+                    viewModel.downloadAllCurrentResults(context, fmt, qual)
+                },
+                onReadTranscript = { item ->
+                    viewModel.fetchVideoTranscript(item.url)
+                },
+                getSavedPositionMs = { title ->
+                    viewModel.prefs.getSavedPlaybackPosition(title)
                 },
                 onLoadMore = {
                     viewModel.loadMoreSearchResults()
@@ -470,7 +731,7 @@ fun DownloaderContent(
             )
         }
 
-        // Medya Başarıyla Yüklendiğinde Format ve Kalite Seçimi (#8 Canlı Önizleme Desteğiyle)
+        // Medya Başarıyla Yüklendiğinde Format ve Kalite Seçimi
         if (uiState is UiState.MediaReady) {
             val media = (uiState as UiState.MediaReady).data
             QualitySelectorCard(
@@ -500,14 +761,12 @@ fun DownloaderContent(
                     )
                 },
                 onPreviewListen = {
-                    if (isHaptic) AccessibilityHelper.vibrateSuccess(context)
-                    AccessibilityHelper.announce(view, "${media.title} canlı önizleme başlatılıyor…")
-                    InAppPlayerManager.playRemotePreview(
-                        title = media.title,
-                        mediaUrl = media.url,
-                        context = context
-                    )
-                }
+                    openVideoPopupPlayer(media.title, media.url)
+                },
+                onReadTranscript = {
+                    viewModel.fetchVideoTranscript(media.url)
+                },
+                isFetchingTranscript = isFetchingTranscript
             )
         }
 

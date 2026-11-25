@@ -97,3 +97,10 @@ data class FeedbackResponse(
     @SerializedName("feedback_id") val feedbackId: String?,
     @SerializedName("message") val message: String?
 )
+
+data class TranscriptResponse(
+    @SerializedName("success") val success: Boolean,
+    @SerializedName("title") val title: String,
+    @SerializedName("language") val language: String,
+    @SerializedName("transcript") val transcript: String
+)

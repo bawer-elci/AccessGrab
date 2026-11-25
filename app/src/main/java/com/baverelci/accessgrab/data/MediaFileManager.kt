@@ -3,11 +3,18 @@ package com.baverelci.accessgrab.data
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
+import android.media.MediaMuxer
 import android.net.Uri
 import android.os.Environment
 import androidx.core.content.FileProvider
 import java.io.File
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
+import java.util.ArrayList
 import java.util.Date
 import java.util.Locale
 
@@ -262,6 +269,143 @@ object MediaFileManager {
             }
         }
         return deletedCount
+    }
+
+    /**
+     * #76 — WhatsApp Durumu İçin Videoyu 30 Saniyelik Parçalara Bölerek Paylaşma
+     */
+    fun splitVideoInto30SecAndShare(context: Context, sourceFile: File): Result<String> {
+        return try {
+            if (!sourceFile.exists()) {
+                return Result.failure(Exception("Video dosyası bulunamadı."))
+            }
+
+            var totalDurationMs = 0L
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(sourceFile.absolutePath)
+                totalDurationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            } catch (_: Exception) {
+            } finally {
+                try { retriever.release() } catch (_: Exception) {}
+            }
+
+            if (totalDurationMs in 1..32_000L) {
+                shareMediaFile(context, sourceFile)
+                return Result.success("Video 30 saniyeden kısa olduğu için doğrudan paylaşım ekranı açıldı.")
+            }
+
+            val baseDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let { File(it, "AccessGrab") }
+                ?: File(context.filesDir, "AccessGrab")
+            if (!baseDir.exists()) baseDir.mkdirs()
+
+            val baseTitle = cleanDisplayName(sourceFile.nameWithoutExtension).take(35).trim()
+            val segmentDurationUs = 30_000_000L // 30 saniye
+            val totalDurationUs = if (totalDurationMs > 0) totalDurationMs * 1000L else 180_000_000L
+            val maxParts = ((totalDurationUs + segmentDurationUs - 1) / segmentDurationUs).toInt().coerceIn(1, 10)
+
+            val createdFiles = mutableListOf<File>()
+
+            for (partIdx in 0 until maxParts) {
+                val startUs = partIdx * segmentDurationUs
+                val endUs = startUs + segmentDurationUs
+                if (startUs >= totalDurationUs) break
+
+                val outFile = File(baseDir, "${baseTitle}_Durum_${partIdx + 1}.mp4")
+                if (outFile.exists()) outFile.delete()
+
+                val extractor = MediaExtractor()
+                var muxer: MediaMuxer? = null
+                var wroteSamples = false
+
+                try {
+                    extractor.setDataSource(sourceFile.absolutePath)
+                    muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+
+                    val trackMap = mutableMapOf<Int, Int>()
+                    for (i in 0 until extractor.trackCount) {
+                        val format = extractor.getTrackFormat(i)
+                        val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
+                        if (mime.startsWith("video/") || mime.startsWith("audio/")) {
+                            extractor.selectTrack(i)
+                            trackMap[i] = muxer.addTrack(format)
+                        }
+                    }
+
+                    if (trackMap.isEmpty()) break
+
+                    muxer.start()
+                    extractor.seekTo(startUs, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+
+                    val buffer = ByteBuffer.allocate(512 * 1024)
+                    val bufferInfo = MediaCodec.BufferInfo()
+                    var firstSampleTimeUs = -1L
+
+                    while (true) {
+                        val trackIndex = extractor.sampleTrackIndex
+                        if (trackIndex < 0) break
+
+                        val sampleTimeUs = extractor.sampleTime
+                        if (sampleTimeUs > endUs) break
+
+                        val muxerTrackIdx = trackMap[trackIndex]
+                        if (muxerTrackIdx != null && sampleTimeUs >= startUs - 500_000L) {
+                            bufferInfo.offset = 0
+                            bufferInfo.size = extractor.readSampleData(buffer, 0)
+                            if (bufferInfo.size < 0) break
+
+                            if (firstSampleTimeUs < 0) firstSampleTimeUs = sampleTimeUs
+                            bufferInfo.presentationTimeUs = (sampleTimeUs - firstSampleTimeUs).coerceAtLeast(0L)
+                            bufferInfo.flags = extractor.sampleFlags
+                            muxer.writeSampleData(muxerTrackIdx, buffer, bufferInfo)
+                            wroteSamples = true
+                        }
+                        extractor.advance()
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    try { muxer?.stop() } catch (_: Exception) {}
+                    try { muxer?.release() } catch (_: Exception) {}
+                    try { extractor.release() } catch (_: Exception) {}
+                }
+
+                if (wroteSamples && outFile.exists() && outFile.length() > 10_000L) {
+                    createdFiles.add(outFile)
+                } else {
+                    outFile.delete()
+                }
+            }
+
+            if (createdFiles.isEmpty()) {
+                shareMediaFile(context, sourceFile)
+                return Result.success("Paylaşım ekranı açıldı.")
+            }
+
+            val uris = ArrayList<Uri>()
+            for (f in createdFiles) {
+                uris.add(
+                    FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        f
+                    )
+                )
+            }
+
+            val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "video/mp4"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(shareIntent, "30 Saniyelik Durum Parçalarını Paylaş (${createdFiles.size} Parça)").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+
+            Result.success("Video ${createdFiles.size} adet 30 saniyelik WhatsApp Durum parçasına bölündü, kütüphaneye kaydedildi ve paylaşım ekranı açıldı.")
+        } catch (e: Exception) {
+            Result.failure(Exception("Video parçalara bölünemedi: ${e.localizedMessage}"))
+        }
     }
 
     private fun formatBytes(bytes: Long): String {

@@ -5,6 +5,18 @@ import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+data class HistoryEntry(
+    val title: String,
+    val url: String,
+    val actionType: String,
+    val timestamp: String
+)
 
 class PreferencesManager(context: Context) {
 
@@ -45,6 +57,63 @@ class PreferencesManager(context: Context) {
     // Az Görenler İçin Ultra Yüksek Kontrast ve Dev Yazı Modu
     private val _isHighContrastLargeText = MutableStateFlow(prefs.getBoolean(KEY_HIGH_CONTRAST_LARGE, false))
     val isHighContrastLargeText: StateFlow<Boolean> = _isHighContrastLargeText.asStateFlow()
+
+    // #71 — İndirme ve İzleme Geçmişim Listesi
+    private val _historyItems = MutableStateFlow(loadHistoryFromPrefs())
+    val historyItems: StateFlow<List<HistoryEntry>> = _historyItems.asStateFlow()
+
+    private fun loadHistoryFromPrefs(): List<HistoryEntry> {
+        val raw = prefs.getString(KEY_WATCH_DOWNLOAD_HISTORY, null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val list = mutableListOf<HistoryEntry>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val title = obj.optString("title", "")
+                val url = obj.optString("url", "")
+                if (title.isNotBlank() && url.isNotBlank()) {
+                    list.add(
+                        HistoryEntry(
+                            title = title,
+                            url = url,
+                            actionType = obj.optString("actionType", "İzlendi"),
+                            timestamp = obj.optString("timestamp", "")
+                        )
+                    )
+                }
+            }
+            list
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addWatchOrDownloadHistory(title: String, url: String, actionType: String) {
+        if (title.isBlank() || url.isBlank()) return
+        try {
+            val dateStr = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date())
+            val current = loadHistoryFromPrefs().filterNot { it.url == url && it.title == title }.toMutableList()
+            current.add(0, HistoryEntry(title = title, url = url, actionType = actionType, timestamp = dateStr))
+            val trimmed = current.take(40)
+            val arr = JSONArray()
+            for (item in trimmed) {
+                val obj = JSONObject().apply {
+                    put("title", item.title)
+                    put("url", item.url)
+                    put("actionType", item.actionType)
+                    put("timestamp", item.timestamp)
+                }
+                arr.put(obj)
+            }
+            prefs.edit().putString(KEY_WATCH_DOWNLOAD_HISTORY, arr.toString()).apply()
+            _historyItems.value = trimmed
+        } catch (_: Exception) {}
+    }
+
+    fun clearWatchOrDownloadHistory() {
+        prefs.edit().remove(KEY_WATCH_DOWNLOAD_HISTORY).apply()
+        _historyItems.value = emptyList()
+    }
 
     fun setHapticEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_HAPTIC, enabled).apply()
@@ -193,5 +262,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_HIGH_CONTRAST_LARGE = "pref_high_contrast_large"
         private const val KEY_DISMISSED_ANNOUNCEMENT_ID = "pref_dismissed_announcement_id"
         private const val KEY_NOTIFIED_ANNOUNCEMENT_ID = "pref_notified_announcement_id"
+        private const val KEY_WATCH_DOWNLOAD_HISTORY = "pref_watch_download_history"
     }
 }

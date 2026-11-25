@@ -30,9 +30,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Özel melodili bildirim kanallarını oluştur ve arka plan bildirim servisini zamanla
+        // Özel melodili bildirim kanallarını oluştur ve arka plan bildirim servisini başlat
         UpdateNotificationHelper.createNotificationChannels(this)
         BackgroundSyncReceiver.schedulePeriodicSync(this)
+        com.baverelci.accessgrab.notification.NotificationSyncService.startServiceSafely(this)
+        com.baverelci.accessgrab.notification.NotificationSyncService.scheduleRestartAlarm(this, 20_000L)
 
         // Android 13+ (API 33+) cihazlarda durum çubuğu bildirim iznini kontrol et
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

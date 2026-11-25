@@ -32,6 +32,7 @@ import java.io.File
 data class PlayerState(
     val currentFile: DownloadedMediaFile? = null,
     val isRemotePreview: Boolean = false,
+    val remoteMediaUrl: String? = null,
     val isBuffering: Boolean = false,
     val isPlaying: Boolean = false,
     val currentPositionMs: Int = 0,
@@ -122,27 +123,45 @@ object InAppPlayerManager {
     }
 
     /**
-     * #8 — Arama sonuçlarında veya incelenen medyada dosyayı telefona indirmeden önce canlı önizleme / dinleme başlatır.
+     * #8 — Arama sonuçlarında veya incelenen medyada dosyayı telefona indirmeden önce görüntülü + sesli canlı oynatıcı penceresinde açar.
+     * Yarıda kaldıysa kaldığı saniyeden devam eder.
      */
     fun playRemotePreview(
         title: String,
         mediaUrl: String,
-        context: Context
-    ) {
+        context: Context,
+        prefs: PreferencesManager? = null,
+        forceFromStart: Boolean = false
+    ): Int {
         appContext = context.applicationContext
+        if (prefs != null) {
+            prefsManager = prefs
+        } else if (prefsManager == null) {
+            prefsManager = PreferencesManager(context.applicationContext)
+        }
         saveCurrentPositionIfApplicable()
         stopInternal()
 
+        val savedPos = if (!forceFromStart) {
+            prefsManager?.getSavedPlaybackPosition(title) ?: 0
+        } else {
+            prefsManager?.clearSavedPlaybackPosition(title)
+            0
+        }
+
+        // İzleme geçmişine otomatik kaydet (#71)
+        prefsManager?.addWatchOrDownloadHistory(title = title, url = mediaUrl, actionType = "İzlendi")
+
         val streamUrl = AccessGrabApi.buildPreviewUrl(mediaUrl)
         val previewItem = DownloadedMediaFile(
-            file = File(context.cacheDir, "Canli_Onizleme.mp3"),
+            file = File(context.cacheDir, "Canli_Onizleme.mp4"),
             name = title,
             sizeBytes = 0L,
-            formattedSize = "Canlı Önizleme",
+            formattedSize = "Canlı Video",
             lastModified = System.currentTimeMillis(),
-            formattedDate = "İndirmeden Dinle",
-            isAudio = true,
-            extension = "CANLI"
+            formattedDate = "Canlı Oynatıcı",
+            isAudio = false,
+            extension = "CANLI VIDEO"
         )
 
         val currentSpeed = _state.value.playbackSpeed
@@ -151,9 +170,10 @@ object InAppPlayerManager {
         _state.value = PlayerState(
             currentFile = previewItem,
             isRemotePreview = true,
+            remoteMediaUrl = mediaUrl,
             isBuffering = true,
             isPlaying = false,
-            currentPositionMs = 0,
+            currentPositionMs = savedPos,
             durationMs = 0,
             playbackSpeed = currentSpeed,
             volumeBoostPercent = currentBoost
@@ -169,44 +189,66 @@ object InAppPlayerManager {
                 } catch (_: Exception) {}
                 setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
                 setDataSource(streamUrl)
+                activeSurfaceHolder?.let { holder ->
+                    try { setDisplay(holder) } catch (_: Exception) {}
+                }
+                setOnVideoSizeChangedListener { _, w, h ->
+                    if (w > 0 && h > 0) {
+                        _state.value = _state.value.copy(videoWidth = w, videoHeight = h)
+                    }
+                }
                 setOnPreparedListener { player ->
+                    activeSurfaceHolder?.let { holder ->
+                        try { player.setDisplay(holder) } catch (_: Exception) {}
+                    }
                     applyBoostToPlayer(player, _state.value.volumeBoostPercent)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         try {
                             player.playbackParams = PlaybackParams().setSpeed(_state.value.playbackSpeed)
                         } catch (_: Exception) {}
                     }
+                    val totalDur = player.duration.coerceAtLeast(0)
+                    if (savedPos > 4000 && (totalDur <= 0 || savedPos < totalDur - 3000)) {
+                        try {
+                            player.seekTo(savedPos)
+                        } catch (_: Exception) {}
+                    }
                     player.start()
                     _state.value = _state.value.copy(
                         isBuffering = false,
                         isPlaying = true,
-                        durationMs = player.duration.coerceAtLeast(0)
+                        currentPositionMs = player.currentPosition.coerceAtLeast(0),
+                        durationMs = totalDur,
+                        videoWidth = player.videoWidth.coerceAtLeast(0),
+                        videoHeight = player.videoHeight.coerceAtLeast(0)
                     )
                     updateMediaSessionState()
                     updateNotification()
                     startProgressTicker()
                 }
                 setOnCompletionListener {
+                    prefsManager?.clearSavedPlaybackPosition(title)
                     stop()
                 }
                 setOnErrorListener { _, what, extra ->
-                    AppLogger.log("PREVIEW_ERR", "Canlı önizleme hatası: what=$what, extra=$extra ($title)")
+                    AppLogger.log("PREVIEW_ERR", "Canlı video oynatma hatası: what=$what, extra=$extra ($title)")
                     stop()
                     true
                 }
                 prepareAsync()
             }
             mediaPlayer = mp
-            AppLogger.log("PREVIEW_START", "Canlı önizleme başlatıldı: $title")
+            AppLogger.log("PREVIEW_START", "Canlı video oynatıcı başlatıldı: $title (Kaldığı yer: $savedPos ms)")
         } catch (e: Exception) {
-            AppLogger.log("PREVIEW_ERR", "Canlı önizleme açılamadı: $title", e)
+            AppLogger.log("PREVIEW_ERR", "Canlı video oynatıcı açılamadı: $title", e)
             stop()
         }
+        return savedPos
     }
 
     fun playMedia(
@@ -614,11 +656,10 @@ object InAppPlayerManager {
     }
 
     private fun saveCurrentPositionIfApplicable() {
-        if (_state.value.isRemotePreview) return
         val current = _state.value.currentFile ?: return
         val pos = _state.value.currentPositionMs
         val dur = _state.value.durationMs
-        if (pos > 5000 && (dur <= 0 || pos < dur - 3000)) {
+        if (pos > 4000 && (dur <= 0 || pos < dur - 3000)) {
             prefsManager?.savePlaybackPosition(current.name, pos)
         } else if (dur > 0 && pos >= dur - 3000) {
             prefsManager?.clearSavedPlaybackPosition(current.name)

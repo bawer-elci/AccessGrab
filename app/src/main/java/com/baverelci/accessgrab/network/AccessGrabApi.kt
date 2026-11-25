@@ -41,6 +41,18 @@ interface AccessGrabService {
         @Body request: FeedbackRequest,
         @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
     ): FeedbackResponse
+
+    @POST("api/playlist")
+    suspend fun extractPlaylist(
+        @Body request: ExtractRequest,
+        @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
+    ): SearchResponse
+
+    @POST("api/transcript")
+    suspend fun getTranscript(
+        @Body request: ExtractRequest,
+        @Header("X-AccessGrab-Key") apiKey: String = AccessGrabApi.API_KEY
+    ): TranscriptResponse
 }
 
 object AccessGrabApi {
