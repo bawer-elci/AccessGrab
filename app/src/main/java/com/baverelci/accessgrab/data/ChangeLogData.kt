@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
+            version = "v2.2.3",
+            date = "27 Kasım 2026",
+            isLatest = true,
+            highlights = listOf(
+                "Akıllı Pil Tasarruflu Arka Plan Bildirim Motoru: Pil muafiyeti korunurken ekran açıkken WakeLock kullanmayan (10 sn), ekran kilitliyken yalnızca 2.5 sn mikro uyandırma yapan (22 sn) ve internet kapalıyken uyuyan sıfır şarj tüketimli bildirim servisi.",
+                "Turbo İndirme & 4 Çekirdekli Paralel MP3 Dönüştürme Motoru: Sunucuda paylaşımlı RAM (/dev/shm) önbelleği, arama sonuçlarını arka planda önceden hazırlama (Pre-Warm) ve 4 çekirdekli paralel MP3 kodlama ile 3 kata kadar daha hızlı indirme.",
+                "256 KB Tamponlu Yüksek Hızlı Disk Yazımı: İndirme sırasında ağ paketlerini bekletmeyen BufferedOutputStream akış motoru."
+            )
+        ),
+        ReleaseLog(
             version = "v2.2.2",
             date = "26 Kasım 2026",
-            isLatest = true,
+            isLatest = false,
             highlights = listOf(
                 "Uygulama Kapalıyken Kesintisiz Anlık Bildirim Servisi (Foreground Guard): Uygulama arka plandayken veya ekran kilitliyken Android'in bildirim servisini uyutmasını önleyen 4 saniyelik kesintisiz Foreground bildirim motoru ve WakeLock desteği.",
                 "Otomatik Yeni Sürüm ve Güncelleme Bildirimi: Yeni bir güncelleme yayınlandığında uygulama kapalıyken bile özel kristal melodiyle (accessgrab_chime) durum çubuğuna bildirim düşmesi ve bildirime dokunulduğunda doğrudan kurulum ekranının açılması.",

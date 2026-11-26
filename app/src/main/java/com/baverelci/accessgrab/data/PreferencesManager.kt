@@ -143,6 +143,7 @@ class PreferencesManager(context: Context) {
         prefs.edit().putBoolean(KEY_BATTERY_OPT_PROMPTED, prompted).apply()
     }
 
+
     fun setShakeToPlayPauseEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_SHAKE_PLAY_PAUSE, enabled).apply()
         _isShakeToPlayPauseEnabled.value = enabled

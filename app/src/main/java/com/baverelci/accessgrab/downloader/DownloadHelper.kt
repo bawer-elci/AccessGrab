@@ -144,8 +144,8 @@ object DownloadHelper {
                         var lastReportTime = 0L
 
                         body.byteStream().use { input ->
-                            FileOutputStream(tempFile, isResuming).use { output ->
-                                val buffer = ByteArray(131072)
+                            java.io.BufferedOutputStream(FileOutputStream(tempFile, isResuming), 262144).use { output ->
+                                val buffer = ByteArray(262144)
                                 var bytesRead: Int
 
                                 while (input.read(buffer).also { bytesRead = it } != -1) {

@@ -32,18 +32,20 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
 
         schedulePeriodicSync(appContext)
         NotificationSyncService.startServiceSafely(appContext)
-        NotificationSyncService.scheduleRestartAlarm(appContext, 15_000L)
+        NotificationSyncService.scheduleRestartAlarm(appContext, 45_000L)
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             var wakeLock: PowerManager.WakeLock? = null
             try {
                 val pm = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
-                wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AccessGrab:ReceiverSyncLock")?.apply {
-                    setReferenceCounted(false)
-                    acquire(12_000L)
+                if (pm?.isInteractive == false) {
+                    wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AccessGrab:ReceiverSyncLock")?.apply {
+                        setReferenceCounted(false)
+                        acquire(3_500L)
+                    }
                 }
-                checkServerNotifications(appContext)
+                checkServerNotifications(appContext, checkVersion = true)
             } catch (_: Exception) {
             } finally {
                 try {
@@ -83,7 +85,7 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
 
-                val triggerAt = SystemClock.elapsedRealtime() + 15_000L
+                val triggerAt = SystemClock.elapsedRealtime() + 30_000L
                 alarmManager.setInexactRepeating(
                     AlarmManager.ELAPSED_REALTIME_WAKEUP,
                     triggerAt,
@@ -93,7 +95,7 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
             } catch (_: Exception) {}
         }
 
-        suspend fun checkServerNotifications(context: Context) {
+        suspend fun checkServerNotifications(context: Context, checkVersion: Boolean = true) {
             val appContext = context.applicationContext
             syncMutex.withLock {
                 val prefs = PreferencesManager(appContext)
@@ -118,36 +120,38 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
                 } catch (_: Exception) {}
 
                 // 2. Yeni Güncelleme Kontrolü (Uygulama dışındayken de yeni sürüm çıktığında anında bildirim atar)
-                try {
-                    val info = AccessGrabApi.service.getLatestVersion()
-                    val currentVersionCode = try {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            appContext.packageManager.getPackageInfo(appContext.packageName, 0).longVersionCode
-                        } else {
-                            @Suppress("DEPRECATION")
-                            appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionCode.toLong()
+                if (checkVersion) {
+                    try {
+                        val info = AccessGrabApi.service.getLatestVersion()
+                        val currentVersionCode = try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                appContext.packageManager.getPackageInfo(appContext.packageName, 0).longVersionCode
+                            } else {
+                                @Suppress("DEPRECATION")
+                                appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionCode.toLong()
+                            }
+                        } catch (_: Exception) {
+                            1L
                         }
-                    } catch (_: Exception) {
-                        1L
-                    }
 
-                    if (info.latestVersionCode > currentVersionCode) {
-                        _latestUpdateFlow.value = info
-                        if (prefs.isAutoUpdateEnabled.value &&
-                            prefs.getLastNotifiedVersionCode() < info.latestVersionCode
-                        ) {
-                            prefs.setLastNotifiedVersionCode(info.latestVersionCode)
-                            UpdateNotificationHelper.showUpdateNotification(
-                                context = appContext,
-                                versionName = info.latestVersionName,
-                                changelog = info.changelog,
-                                versionCode = info.latestVersionCode
-                            )
+                        if (info.latestVersionCode > currentVersionCode) {
+                            _latestUpdateFlow.value = info
+                            if (prefs.isAutoUpdateEnabled.value &&
+                                prefs.getLastNotifiedVersionCode() < info.latestVersionCode
+                            ) {
+                                prefs.setLastNotifiedVersionCode(info.latestVersionCode)
+                                UpdateNotificationHelper.showUpdateNotification(
+                                    context = appContext,
+                                    versionName = info.latestVersionName,
+                                    changelog = info.changelog,
+                                    versionCode = info.latestVersionCode
+                                )
+                            }
+                        } else {
+                            _latestUpdateFlow.value = null
                         }
-                    } else {
-                        _latestUpdateFlow.value = null
-                    }
-                } catch (_: Exception) {}
+                    } catch (_: Exception) {}
+                }
             }
         }
     }

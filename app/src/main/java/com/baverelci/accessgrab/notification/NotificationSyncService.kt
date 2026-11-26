@@ -6,6 +6,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -23,8 +25,8 @@ import kotlinx.coroutines.launch
 /**
  * Uygulama arka plandayken, ekran kapalıyken veya son uygulamalardan kapatıldığında bile
  * Android tarafından öldürülmemek için sessiz Foreground Service olarak çalışan,
- * her 4 saniyede bir hem panel bildirimlerini hem de yeni uygulama güncellemelerini
- * denetleyip özel melodiyle (accessgrab_chime.wav) bildirim düşüren servis.
+ * Akıllı Pil Tasarrufu Modu (ekran açıkken WakeLock'suz 10 sn, ekran kapalıyken 2.5 sn mikro
+ * uyandırmalı 22 sn periyot ve çevrimdışı uyku) ile şarj tüketmeden anlık bildirim düşüren servis.
  */
 class NotificationSyncService : Service() {
 
@@ -34,15 +36,15 @@ class NotificationSyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         promoteToForegroundSafely()
-        startFastPolling()
+        startSmartPolling()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         promoteToForegroundSafely()
         if (pollingJob?.isActive != true) {
-            startFastPolling()
+            startSmartPolling()
         }
-        scheduleRestartAlarm(applicationContext, 20_000L)
+        scheduleRestartAlarm(applicationContext, 45_000L)
         return START_STICKY
     }
 
@@ -70,43 +72,68 @@ class NotificationSyncService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun startFastPolling() {
+    private fun isNetworkAvailable(context: Context): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return true
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    private fun startSmartPolling() {
         pollingJob?.cancel()
         pollingJob = serviceScope.launch {
             var tickCount = 0
             while (isActive) {
-                var wakeLock: PowerManager.WakeLock? = null
-                try {
-                    val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
-                    wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AccessGrab:SyncPollLock")?.apply {
-                        setReferenceCounted(false)
-                        acquire(10_000L)
-                    }
-                    BackgroundSyncReceiver.checkServerNotifications(applicationContext)
-                    tickCount++
-                    if (tickCount % 5 == 0) {
-                        scheduleRestartAlarm(applicationContext, 20_000L)
-                    }
-                } catch (_: Exception) {
-                } finally {
+                val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                val isScreenOn = pm?.isInteractive ?: true
+
+                if (isNetworkAvailable(applicationContext)) {
+                    var wakeLock: PowerManager.WakeLock? = null
                     try {
-                        if (wakeLock?.isHeld == true) {
-                            wakeLock.release()
+                        // Ekran zaten açıksa WakeLock'a hiç gerek yok (pil tasarrufu)
+                        if (!isScreenOn) {
+                            wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AccessGrab:SyncPollLock")?.apply {
+                                setReferenceCounted(false)
+                                acquire(2_500L)
+                            }
                         }
-                    } catch (_: Exception) {}
+                        val shouldCheckVersion = (tickCount % 3 == 0)
+                        BackgroundSyncReceiver.checkServerNotifications(
+                            context = applicationContext,
+                            checkVersion = shouldCheckVersion
+                        )
+                        tickCount++
+                        if (tickCount % 4 == 0) {
+                            scheduleRestartAlarm(applicationContext, 45_000L)
+                        }
+                    } catch (_: Exception) {
+                    } finally {
+                        try {
+                            if (wakeLock?.isHeld == true) {
+                                wakeLock.release()
+                            }
+                        } catch (_: Exception) {}
+                    }
                 }
-                delay(4_000L) // Her 4 saniyede bir canlı duyuru ve yeni sürüm kontrolü
+
+                // Akıllı bekleme süresi: Ekran açıkken 10 sn, ekran kilitliyken 22 sn (minimum pil tüketimi)
+                val sleepDurationMs = if (isScreenOn) 10_000L else 22_000L
+                delay(sleepDurationMs)
             }
         }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        scheduleRestartAlarm(applicationContext, 5_000L)
+        scheduleRestartAlarm(applicationContext, 8_000L)
         super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
-        scheduleRestartAlarm(applicationContext, 5_000L)
+        scheduleRestartAlarm(applicationContext, 8_000L)
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -124,12 +151,12 @@ class NotificationSyncService : Service() {
                     val intent = Intent(appContext, NotificationSyncService::class.java)
                     appContext.startService(intent)
                 } catch (_: Exception) {
-                    scheduleRestartAlarm(appContext, 5_000L)
+                    scheduleRestartAlarm(appContext, 10_000L)
                 }
             }
         }
 
-        fun scheduleRestartAlarm(context: Context, delayMs: Long = 15_000L) {
+        fun scheduleRestartAlarm(context: Context, delayMs: Long = 45_000L) {
             try {
                 val appContext = context.applicationContext
                 val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return

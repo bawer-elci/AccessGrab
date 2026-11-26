@@ -246,9 +246,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startBackgroundAnnouncementPolling() {
         viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(5_000L)
+                kotlinx.coroutines.delay(10_000L)
                 try {
-                    BackgroundSyncReceiver.checkServerNotifications(getApplication())
+                    BackgroundSyncReceiver.checkServerNotifications(getApplication(), checkVersion = false)
                 } catch (_: Exception) {}
             }
         }
