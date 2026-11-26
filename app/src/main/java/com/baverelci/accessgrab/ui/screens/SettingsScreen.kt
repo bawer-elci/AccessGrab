@@ -510,7 +510,11 @@ fun SettingsScreen(
                         .semantics(mergeDescendants = true) {
                             this.contentDescription = "Yeni Sürüm Bildirimi anahtarı, ${if (isAutoUpdate) "açık" else "kapalı"}."
                         }
-                        .clickable { prefs.setAutoUpdateEnabled(!isAutoUpdate) },
+                        .clickable {
+                            val nextVal = !isAutoUpdate
+                            prefs.setAutoUpdateEnabled(nextVal)
+                            if (nextVal) viewModel.checkForUpdates(isManual = false)
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -528,7 +532,10 @@ fun SettingsScreen(
                     }
                     Switch(
                         checked = isAutoUpdate,
-                        onCheckedChange = { prefs.setAutoUpdateEnabled(it) },
+                        onCheckedChange = {
+                            prefs.setAutoUpdateEnabled(it)
+                            if (it) viewModel.checkForUpdates(isManual = false)
+                        },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colorScheme.primary,
                             checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)

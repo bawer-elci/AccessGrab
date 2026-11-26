@@ -6,12 +6,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import com.baverelci.accessgrab.data.PreferencesManager
 import com.baverelci.accessgrab.network.AccessGrabApi
+import com.baverelci.accessgrab.network.AnnouncementInfo
+import com.baverelci.accessgrab.network.UpdateInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Uygulama kapalıyken veya kullanıcı uygulama içinde değilken bile periyodik olarak
@@ -24,14 +32,25 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
 
         schedulePeriodicSync(appContext)
         NotificationSyncService.startServiceSafely(appContext)
-        NotificationSyncService.scheduleRestartAlarm(appContext, 25_000L)
+        NotificationSyncService.scheduleRestartAlarm(appContext, 15_000L)
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
+            var wakeLock: PowerManager.WakeLock? = null
             try {
+                val pm = appContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AccessGrab:ReceiverSyncLock")?.apply {
+                    setReferenceCounted(false)
+                    acquire(12_000L)
+                }
                 checkServerNotifications(appContext)
             } catch (_: Exception) {
             } finally {
+                try {
+                    if (wakeLock?.isHeld == true) {
+                        wakeLock.release()
+                    }
+                } catch (_: Exception) {}
                 try {
                     pendingResult.finish()
                 } catch (_: Exception) {}
@@ -42,6 +61,13 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_BACKGROUND_SYNC = "com.baverelci.accessgrab.ACTION_BACKGROUND_SYNC"
         private const val REQUEST_CODE_ALARM = 4402
+        private val syncMutex = Mutex()
+
+        private val _latestAnnouncementFlow = MutableStateFlow<AnnouncementInfo?>(null)
+        val latestAnnouncementFlow: StateFlow<AnnouncementInfo?> = _latestAnnouncementFlow.asStateFlow()
+
+        private val _latestUpdateFlow = MutableStateFlow<UpdateInfo?>(null)
+        val latestUpdateFlow: StateFlow<UpdateInfo?> = _latestUpdateFlow.asStateFlow()
 
         fun schedulePeriodicSync(context: Context) {
             try {
@@ -57,7 +83,7 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
 
-                val triggerAt = SystemClock.elapsedRealtime() + 20_000L
+                val triggerAt = SystemClock.elapsedRealtime() + 15_000L
                 alarmManager.setInexactRepeating(
                     AlarmManager.ELAPSED_REALTIME_WAKEUP,
                     triggerAt,
@@ -69,25 +95,29 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
 
         suspend fun checkServerNotifications(context: Context) {
             val appContext = context.applicationContext
-            val prefs = PreferencesManager(appContext)
+            syncMutex.withLock {
+                val prefs = PreferencesManager(appContext)
 
-            // 1. Canlı Duyuru / Bildirim Kontrolü (Uygulama dışındakilere de bildirim düşer)
-            try {
-                val ann = AccessGrabApi.service.getAnnouncement()
-                if (ann.active && ann.id.isNotBlank() && ann.message.isNotBlank()) {
-                    if (ann.id != prefs.getLastNotifiedAnnouncementId()) {
-                        prefs.setLastNotifiedAnnouncementId(ann.id)
-                        UpdateNotificationHelper.showAnnouncementNotification(
-                            context = appContext,
-                            title = ann.title,
-                            message = ann.message
-                        )
+                // 1. Canlı Duyuru / Bildirim Kontrolü (Uygulama dışındakilere de anında bildirim düşer)
+                try {
+                    val ann = AccessGrabApi.service.getAnnouncement()
+                    if (ann.active && ann.id.isNotBlank() && ann.message.isNotBlank()) {
+                        _latestAnnouncementFlow.value = ann
+                        if (ann.id != prefs.getLastNotifiedAnnouncementId()) {
+                            prefs.setLastNotifiedAnnouncementId(ann.id)
+                            UpdateNotificationHelper.showAnnouncementNotification(
+                                context = appContext,
+                                title = ann.title,
+                                message = ann.message,
+                                announcementId = ann.id
+                            )
+                        }
+                    } else {
+                        _latestAnnouncementFlow.value = null
                     }
-                }
-            } catch (_: Exception) {}
+                } catch (_: Exception) {}
 
-            // 2. Yeni Güncelleme Kontrolü
-            if (prefs.isAutoUpdateEnabled.value) {
+                // 2. Yeni Güncelleme Kontrolü (Uygulama dışındayken de yeni sürüm çıktığında anında bildirim atar)
                 try {
                     val info = AccessGrabApi.service.getLatestVersion()
                     val currentVersionCode = try {
@@ -101,15 +131,21 @@ class BackgroundSyncReceiver : BroadcastReceiver() {
                         1L
                     }
 
-                    if (info.latestVersionCode > currentVersionCode &&
-                        prefs.getLastNotifiedVersionCode() < info.latestVersionCode
-                    ) {
-                        prefs.setLastNotifiedVersionCode(info.latestVersionCode)
-                        UpdateNotificationHelper.showUpdateNotification(
-                            context = appContext,
-                            versionName = info.latestVersionName,
-                            changelog = info.changelog
-                        )
+                    if (info.latestVersionCode > currentVersionCode) {
+                        _latestUpdateFlow.value = info
+                        if (prefs.isAutoUpdateEnabled.value &&
+                            prefs.getLastNotifiedVersionCode() < info.latestVersionCode
+                        ) {
+                            prefs.setLastNotifiedVersionCode(info.latestVersionCode)
+                            UpdateNotificationHelper.showUpdateNotification(
+                                context = appContext,
+                                versionName = info.latestVersionName,
+                                changelog = info.changelog,
+                                versionCode = info.latestVersionCode
+                            )
+                        }
+                    } else {
+                        _latestUpdateFlow.value = null
                     }
                 } catch (_: Exception) {}
             }

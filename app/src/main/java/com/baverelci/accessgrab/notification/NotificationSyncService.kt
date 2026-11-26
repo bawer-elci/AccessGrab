@@ -5,8 +5,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.SystemClock
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -17,9 +21,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Uygulama arka plandayken veya kapatıldığında bile panelden gönderilen bildirimleri
- * 8 saniye içinde yakalayıp özel bildirim sesiyle (accessgrab_chime.wav) kullanıcıya ulaştıran
- * hafif arka plan senkronizasyon servisi.
+ * Uygulama arka plandayken, ekran kapalıyken veya son uygulamalardan kapatıldığında bile
+ * Android tarafından öldürülmemek için sessiz Foreground Service olarak çalışan,
+ * her 4 saniyede bir hem panel bildirimlerini hem de yeni uygulama güncellemelerini
+ * denetleyip özel melodiyle (accessgrab_chime.wav) bildirim düşüren servis.
  */
 class NotificationSyncService : Service() {
 
@@ -28,36 +33,80 @@ class NotificationSyncService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        promoteToForegroundSafely()
         startFastPolling()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        promoteToForegroundSafely()
         if (pollingJob?.isActive != true) {
             startFastPolling()
         }
+        scheduleRestartAlarm(applicationContext, 20_000L)
         return START_STICKY
+    }
+
+    private fun promoteToForegroundSafely() {
+        try {
+            val notification = UpdateNotificationHelper.buildForegroundGuardNotification(applicationContext)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    UpdateNotificationHelper.FOREGROUND_GUARD_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    UpdateNotificationHelper.FOREGROUND_GUARD_NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(
+                    UpdateNotificationHelper.FOREGROUND_GUARD_NOTIFICATION_ID,
+                    notification
+                )
+            }
+        } catch (_: Exception) {}
     }
 
     private fun startFastPolling() {
         pollingJob?.cancel()
         pollingJob = serviceScope.launch {
+            var tickCount = 0
             while (isActive) {
+                var wakeLock: PowerManager.WakeLock? = null
                 try {
+                    val pm = applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "AccessGrab:SyncPollLock")?.apply {
+                        setReferenceCounted(false)
+                        acquire(10_000L)
+                    }
                     BackgroundSyncReceiver.checkServerNotifications(applicationContext)
-                } catch (_: Exception) {}
-                delay(8_000L) // Her 8 saniyede bir yeni bildirim kontrolü
+                    tickCount++
+                    if (tickCount % 5 == 0) {
+                        scheduleRestartAlarm(applicationContext, 20_000L)
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    try {
+                        if (wakeLock?.isHeld == true) {
+                            wakeLock.release()
+                        }
+                    } catch (_: Exception) {}
+                }
+                delay(4_000L) // Her 4 saniyede bir canlı duyuru ve yeni sürüm kontrolü
             }
         }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Kullanıcı uygulamayı son uygulamalardan kaydırıp kapatsa bile 10 sn sonra servisi yeniden uyandır
-        scheduleRestartAlarm(applicationContext, 10_000L)
+        scheduleRestartAlarm(applicationContext, 5_000L)
         super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
-        scheduleRestartAlarm(applicationContext, 15_000L)
+        scheduleRestartAlarm(applicationContext, 5_000L)
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -66,13 +115,17 @@ class NotificationSyncService : Service() {
 
     companion object {
         fun startServiceSafely(context: Context) {
+            val appContext = context.applicationContext
             try {
-                val appContext = context.applicationContext
                 val intent = Intent(appContext, NotificationSyncService::class.java)
-                appContext.startService(intent)
+                ContextCompat.startForegroundService(appContext, intent)
             } catch (_: Exception) {
-                // Android 8+ arka plan kısıtlaması durumunda AlarmManager ile uyandır
-                scheduleRestartAlarm(context.applicationContext, 10_000L)
+                try {
+                    val intent = Intent(appContext, NotificationSyncService::class.java)
+                    appContext.startService(intent)
+                } catch (_: Exception) {
+                    scheduleRestartAlarm(appContext, 5_000L)
+                }
             }
         }
 
@@ -90,11 +143,19 @@ class NotificationSyncService : Service() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
                 val triggerAt = SystemClock.elapsedRealtime() + delayMs
-                alarmManager.setAndAllowWhileIdle(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    triggerAt,
-                    pendingIntent
-                )
+                try {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                    )
+                } catch (_: SecurityException) {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                        triggerAt,
+                        pendingIntent
+                    )
+                }
             } catch (_: Exception) {}
         }
     }

@@ -37,3 +37,5 @@
 # Android Zorunlu Sistem Bileşenleri
 -keep public class com.baverelci.accessgrab.MainActivity
 -keep public class androidx.core.content.FileProvider
+-keep class com.baverelci.accessgrab.notification.** { *; }
+-keepclassmembers class com.baverelci.accessgrab.notification.** { *; }

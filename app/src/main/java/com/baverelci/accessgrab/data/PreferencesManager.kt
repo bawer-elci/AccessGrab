@@ -32,8 +32,8 @@ class PreferencesManager(context: Context) {
     private val _defaultFormat = MutableStateFlow(prefs.getString(KEY_DEFAULT_FORMAT, "ask") ?: "ask")
     val defaultFormat: StateFlow<String> = _defaultFormat.asStateFlow()
 
-    // Kullanıcı isteği doğrultusunda varsayılan olarak KAPALI (false)
-    private val _isAutoUpdateEnabled = MutableStateFlow(prefs.getBoolean(KEY_AUTO_UPDATE, false))
+    // Yeni sürüm çıktığında arka planda ve uygulama açılışında otomatik bildirim (Varsayılan: AÇIK)
+    private val _isAutoUpdateEnabled = MutableStateFlow(prefs.getBoolean(KEY_AUTO_UPDATE, true))
     val isAutoUpdateEnabled: StateFlow<Boolean> = _isAutoUpdateEnabled.asStateFlow()
 
     // Telefonu sallayarak oynatıcıyı duraklat/başlat (Varsayılan: Açık)
@@ -131,8 +131,16 @@ class PreferencesManager(context: Context) {
     }
 
     fun setAutoUpdateEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_UPDATE, enabled).apply()
+        prefs.edit().putBoolean(KEY_AUTO_UPDATE, enabled).commit()
         _isAutoUpdateEnabled.value = enabled
+    }
+
+    fun hasPromptedBatteryOptimization(): Boolean {
+        return prefs.getBoolean(KEY_BATTERY_OPT_PROMPTED, false)
+    }
+
+    fun setPromptedBatteryOptimization(prompted: Boolean) {
+        prefs.edit().putBoolean(KEY_BATTERY_OPT_PROMPTED, prompted).apply()
     }
 
     fun setShakeToPlayPauseEnabled(enabled: Boolean) {
@@ -163,7 +171,7 @@ class PreferencesManager(context: Context) {
     }
 
     fun setLastNotifiedAnnouncementId(id: String) {
-        prefs.edit().putString(KEY_NOTIFIED_ANNOUNCEMENT_ID, id).apply()
+        prefs.edit().putString(KEY_NOTIFIED_ANNOUNCEMENT_ID, id).commit()
     }
 
     fun getLastNotifiedVersionCode(): Int {
@@ -171,7 +179,7 @@ class PreferencesManager(context: Context) {
     }
 
     fun setLastNotifiedVersionCode(versionCode: Int) {
-        prefs.edit().putInt(KEY_LAST_NOTIFIED_VERSION, versionCode).apply()
+        prefs.edit().putInt(KEY_LAST_NOTIFIED_VERSION, versionCode).commit()
     }
 
     /**
@@ -249,7 +257,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_HAPTIC = "pref_haptic"
         private const val KEY_CLIPBOARD = "pref_clipboard"
         private const val KEY_DEFAULT_FORMAT = "pref_default_format"
-        private const val KEY_AUTO_UPDATE = "pref_auto_update"
+        private const val KEY_AUTO_UPDATE = "pref_auto_update_v2"
+        private const val KEY_BATTERY_OPT_PROMPTED = "pref_battery_opt_prompted"
         private const val KEY_LAST_NOTIFIED_VERSION = "pref_last_notified_version"
         private const val KEY_SHAKE_PLAY_PAUSE = "pref_shake_play_pause"
         private const val KEY_COMPLETION_SOUND = "pref_completion_sound"

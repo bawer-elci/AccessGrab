@@ -65,13 +65,27 @@ object AccessibilityHelper {
         } catch (_: Exception) {}
     }
 
+    private var activeChimePlayer: MediaPlayer? = null
+
     /**
      * Duyuru ve yeni güncelleme bildirimlerinde özel bestelenmiş kristal melodi (accessgrab_chime.wav) çalar.
      */
     fun playCustomNotificationChime(context: Context) {
+        vibrateSuccess(context)
         try {
+            activeChimePlayer?.let { old ->
+                try {
+                    if (old.isPlaying) old.stop()
+                } catch (_: Exception) {}
+                try {
+                    old.release()
+                } catch (_: Exception) {}
+            }
+            activeChimePlayer = null
+
             val afd = context.applicationContext.resources.openRawResourceFd(R.raw.accessgrab_chime) ?: return
             val mp = MediaPlayer()
+            activeChimePlayer = mp
             mp.setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
@@ -82,9 +96,11 @@ object AccessibilityHelper {
             afd.close()
             mp.setOnCompletionListener { player ->
                 try { player.release() } catch (_: Exception) {}
+                if (activeChimePlayer === player) activeChimePlayer = null
             }
             mp.setOnErrorListener { player, _, _ ->
                 try { player.release() } catch (_: Exception) {}
+                if (activeChimePlayer === player) activeChimePlayer = null
                 true
             }
             mp.prepare()

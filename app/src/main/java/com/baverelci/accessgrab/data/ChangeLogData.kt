@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v2.2.1",
+            version = "v2.2.2",
             date = "26 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Uygulama Kapalıyken Kesintisiz Anlık Bildirim Servisi (Foreground Guard): Uygulama arka plandayken veya ekran kilitliyken Android'in bildirim servisini uyutmasını önleyen 4 saniyelik kesintisiz Foreground bildirim motoru ve WakeLock desteği.",
+                "Otomatik Yeni Sürüm ve Güncelleme Bildirimi: Yeni bir güncelleme yayınlandığında uygulama kapalıyken bile özel kristal melodiyle (accessgrab_chime) durum çubuğuna bildirim düşmesi ve bildirime dokunulduğunda doğrudan kurulum ekranının açılması.",
+                "Ses Çalma (MediaPlayer GC) ve Pil Kısıtlaması Koruması: Bildirim melodisinin yarıda kesilmesini önleyen kalıcı ses referansı ve arka plan pil kısıtlaması muafiyet desteği."
+            )
+        ),
+        ReleaseLog(
+            version = "v2.2.1",
+            date = "26 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Arama ve Günün Trendleri Görüntülü Video Oynatıcı Düzeltmesi: YouTube yeni imza (JS Challenge) engelini aşan motorla arama ve trend videolarının oynatıcı penceresinde anında görüntülü ve sesli açılması sağlandı.",
                 "Yüksek Hızlı YouTube ve Trend Müzik İndirme: İndirme hızını düşüren YouTube n-parametresi kısıtlaması kaldırıldı; Trendler listesine yalnızca hızlı inen popüler şarkılar filtresi ve evrensel H.264 video uyumu eklendi.",

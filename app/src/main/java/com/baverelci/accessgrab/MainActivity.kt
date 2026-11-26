@@ -1,10 +1,14 @@
 package com.baverelci.accessgrab
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -40,7 +44,11 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+            } else {
+                requestBatteryOptimizationExemptionIfNeeded()
             }
+        } else {
+            requestBatteryOptimizationExemptionIfNeeded()
         }
 
         shakeDetector = ShakeDetectorHelper(this) {
@@ -71,12 +79,42 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
+    @Suppress("DEPRECATION")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1001) {
+            com.baverelci.accessgrab.notification.NotificationSyncService.startServiceSafely(this)
+            requestBatteryOptimizationExemptionIfNeeded()
+        }
+    }
+
+    private fun requestBatteryOptimizationExemptionIfNeeded() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !viewModel.prefs.hasPromptedBatteryOptimization()) {
+                val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
+                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                    viewModel.prefs.setPromptedBatteryOptimization(true)
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     override fun onResume() {
         super.onResume()
         shakeDetector?.start()
-        // Uygulama ön plana geldiğinde panoyu ve canlı duyuruyu kontrol et
+        com.baverelci.accessgrab.notification.NotificationSyncService.startServiceSafely(this)
+        // Uygulama ön plana geldiğinde panoyu, canlı duyuruyu ve yeni güncellemeleri kontrol et
         viewModel.checkClipboard(this)
         viewModel.checkAnnouncement()
+        viewModel.checkForUpdates(isManual = false)
 
         // Eğer kullanıcı ayarlar ekranından izin verip döndüyse ve indirilmiş güncelleme hazırsa doğrudan kur
         if (viewModel.isWaitingForInstallPermission && ApkInstallHelper.canInstallPackages(this)) {
@@ -98,6 +136,10 @@ class MainActivity : ComponentActivity() {
         val openTab = intent.getIntExtra("OPEN_TAB", -1)
         if (openTab != -1) {
             viewModel.selectTab(openTab)
+        }
+        if (intent.getBooleanExtra("AUTO_CHECK_UPDATE", false)) {
+            intent.removeExtra("AUTO_CHECK_UPDATE")
+            viewModel.checkForUpdates(isManual = true)
         }
         if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)

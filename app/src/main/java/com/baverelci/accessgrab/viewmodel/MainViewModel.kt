@@ -22,6 +22,7 @@ import com.baverelci.accessgrab.network.SearchRequest
 import com.baverelci.accessgrab.network.SearchResultItem
 import com.baverelci.accessgrab.network.TranscriptResponse
 import com.baverelci.accessgrab.network.UpdateInfo
+import com.baverelci.accessgrab.notification.BackgroundSyncReceiver
 import com.baverelci.accessgrab.notification.DownloadNotificationHelper
 import com.baverelci.accessgrab.notification.UpdateNotificationHelper
 import kotlinx.coroutines.CancellationException
@@ -213,16 +214,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         AppLogger.init(application, currentVersionName)
+        observeBackgroundNotifications()
         checkForUpdates(isManual = false)
         checkAnnouncement()
         startBackgroundAnnouncementPolling()
     }
 
+    private fun observeBackgroundNotifications() {
+        viewModelScope.launch {
+            BackgroundSyncReceiver.latestAnnouncementFlow.collect { info ->
+                if (info != null && info.active && info.id.isNotBlank() && info.message.isNotBlank()) {
+                    if (info.id != prefs.getLastDismissedAnnouncementId()) {
+                        _activeAnnouncement.value = info
+                    }
+                } else {
+                    _activeAnnouncement.value = null
+                }
+            }
+        }
+        viewModelScope.launch {
+            BackgroundSyncReceiver.latestUpdateFlow.collect { info ->
+                if (info != null && info.latestVersionCode > currentVersionCode) {
+                    _latestChangelogText.value = info.changelog
+                    _updateInfo.value = info
+                    _updateStatusMessage.value = "Yeni sürüm mevcut: v${info.latestVersionName}. Güncelleme özellikleri: ${info.changelog}"
+                }
+            }
+        }
+    }
+
     private fun startBackgroundAnnouncementPolling() {
         viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(8_000L)
-                checkAnnouncement()
+                kotlinx.coroutines.delay(5_000L)
+                try {
+                    BackgroundSyncReceiver.checkServerNotifications(getApplication())
+                } catch (_: Exception) {}
             }
         }
     }
@@ -230,17 +257,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun checkAnnouncement() {
         viewModelScope.launch {
             try {
-                val info = AccessGrabApi.service.getAnnouncement()
-                if (info.active && info.id.isNotBlank() && info.message.isNotBlank()) {
-                    val app = getApplication<Application>()
-                    if (info.id != prefs.getLastNotifiedAnnouncementId()) {
-                        prefs.setLastNotifiedAnnouncementId(info.id)
-                        UpdateNotificationHelper.showAnnouncementNotification(
-                            context = app,
-                            title = info.title,
-                            message = info.message
-                        )
-                    }
+                BackgroundSyncReceiver.checkServerNotifications(getApplication())
+                val info = BackgroundSyncReceiver.latestAnnouncementFlow.value
+                if (info != null && info.active && info.id.isNotBlank() && info.message.isNotBlank()) {
                     if (info.id != prefs.getLastDismissedAnnouncementId()) {
                         _activeAnnouncement.value = info
                     }
@@ -815,13 +834,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                     // Hoş melodili bildirim gönder
                     val app = getApplication<Application>()
-                    if (prefs.isAutoUpdateEnabled.value && prefs.getLastNotifiedVersionCode() < info.latestVersionCode) {
-                        UpdateNotificationHelper.showUpdateNotification(
-                            app,
-                            info.latestVersionName,
-                            info.changelog
-                        )
+                    if ((isManual || prefs.isAutoUpdateEnabled.value) && prefs.getLastNotifiedVersionCode() < info.latestVersionCode) {
                         prefs.setLastNotifiedVersionCode(info.latestVersionCode)
+                        UpdateNotificationHelper.showUpdateNotification(
+                            context = app,
+                            versionName = info.latestVersionName,
+                            changelog = info.changelog,
+                            versionCode = info.latestVersionCode
+                        )
                     }
                 } else {
                     _updateInfo.value = null
