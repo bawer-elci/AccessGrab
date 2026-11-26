@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v2.2.0",
+            version = "v2.2.1",
             date = "26 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Arama ve Günün Trendleri Görüntülü Video Oynatıcı Düzeltmesi: YouTube yeni imza (JS Challenge) engelini aşan motorla arama ve trend videolarının oynatıcı penceresinde anında görüntülü ve sesli açılması sağlandı.",
+                "Yüksek Hızlı YouTube ve Trend Müzik İndirme: İndirme hızını düşüren YouTube n-parametresi kısıtlaması kaldırıldı; Trendler listesine yalnızca hızlı inen popüler şarkılar filtresi ve evrensel H.264 video uyumu eklendi.",
+                "Kalıcı Uygulama Paylaşım ve İndirme Bağlantısı: WhatsApp ve tüm tarayıcılarda her sürümde değişmeden doğrudan çalışan kalıcı indirme bağlantısı (baverelci.com.tr/AccessGrab.apk ve baverelci.com.tr/accessgrab/indir) kuruldu."
+            )
+        ),
+        ReleaseLog(
+            version = "v2.2.0",
+            date = "26 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Arama Sonuçlarında Doğrudan Görüntülü Video Oynatıcı Penceresi: Arama sonuçlarında bir videoya dokunduğunuzda 1 saniyede açılan görüntülü oynatıcı penceresi, ileri/geri sarma, duraklat/oynat, pencereden doğrudan MP4/MP3 indirme ve yarıda kalan videoya kaldığı saniyeden devam etme.",
                 "YouTube Oynatma Listesi (Playlist) Toplu İndirme (#58): Oynatma listesi bağlantılarındaki tüm videoları listeleme ve 'Tümünü MP3 İndir' / 'Tümünü MP4 İndir' ile toplu indirme.",

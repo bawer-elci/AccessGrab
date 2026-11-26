@@ -294,9 +294,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 appendLine()
                 appendLine("YouTube, Instagram, TikTok, X (Twitter) ve Facebook üzerinden kelimeyle veya sesle arama yapabilir, videoları indirmeden pencerede izleyebilir, MP4 video veya MP3 ses olarak indirebilir, şarkılardan 30 sn zil sesi kesebilir ve ekran kapalıyken bile dinleyebilirsiniz.")
                 appendLine()
-                appendLine("Her Zaman En Güncel Doğrudan APK İndirme Bağlantısı:")
-                appendLine("https://baverelci.com.tr/accessgrab/api/download-apk")
-                append("Alternatif Bağlantı: https://github.com/bawer-elci/AccessGrab/releases/latest/download/AccessGrab.apk")
+                appendLine("Doğrudan APK İndirme Bağlantısı (Her zaman en güncel sürüm):")
+                appendLine("https://baverelci.com.tr/AccessGrab.apk")
+                append("İndirme Sayfası: https://baverelci.com.tr/accessgrab/indir")
             }
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
