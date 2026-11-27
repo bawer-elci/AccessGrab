@@ -27,6 +27,20 @@ Uygulama; medya indirme süreçlerini, canlı ilerleme durumlarını ve dosya y�
 
 ---
 
+## 🚀 Öne Çıkan Özellikler (v2.2.4)
+
+- **Çoklu Platform Desteği:** YouTube (Video, Shorts, Müzik, Oynatma Listesi), Instagram (**Hikayeler / Stories**, Öne Çıkanlar / Highlights, Reels, Gönderiler ve `/share/` bağlantıları), TikTok (Filigransız HD), X / Twitter (Video, GIF ve `t.co` kısa linkler) ve Facebook videolarını tek dokunuşla MP4 veya MP3 olarak indirme.
+- **Uygulama İçi Kelimeyle & Sesle Arama + Günün Trendleri:** Uygulamadan çıkmadan şarkı/video arama, mikrofonla sesli arama ve **Günün Trendleri** listesi.
+- **Doğrudan Görüntülü Video Oynatıcı Penceresi:** Arama sonuçlarında veya Kütüphane'de bir medyaya dokunulduğunda anında açılan görüntülü oynatıcı penceresi; `10 sn` ileri/geri sarma, oynatma hızı (`1x` – `2x`), **`%200` Ses Güçlendirici (`LoudnessEnhancer`)**, yarıda kalan videoya kaldığı saniyeden devam etme ve pencere içinden doğrudan MP4/MP3 indirme.
+- **30 Saniye Zil Sesi Kesici & Ses Atama:** Şarkının o an çaldığı saniyeden itibaren 30 saniyelik kesit alıp doğrudan telefon **Zil Sesi**, **Alarm Sesi** veya **Bildirim Sesi** yapabilme ve tek dokunuşla eski zil sesine dönebilme.
+- **YouTube Oynatma Listesi (Playlist) Toplu İndirme & Çoklu Kuyruk:** Tüm oynatma listesini veya arama sonuçlarını tek dokunuşla sırayla toplu MP3/MP4 indirme.
+- **Videonun Konuşma Metnini / Altyazısını Okuma:** Videodaki konuşma metnini ve altyazıları erişilebilir bilgi kartında okuma ve panoya kopyalama.
+- **WhatsApp Durumu İçin 30 Saniyelik Video Bölücü:** Uzun videoları kayıpsız olarak 30 saniyelik parçalara bölüp doğrudan WhatsApp Durumu'nda paylaşma.
+- **Az Görenler İçin Ultra Yüksek Kontrast (Siyah/Sarı) & Dev Yazı Modu:** Tek anahtarla tüm arayüzü yüksek kontrastlı sarı-siyah temaya ve büyük puntolu yazılara dönüştürme.
+- **Akıllı Pil Tasarruflu Arka Plan Bildirim ve Güncelleme Sistemi:** Uygulama kapalıyken bile şarj tüketmeden yeni sürüm ve duyuruları özel kristal melodiyle bildirme ve uygulama içinden tek dokunuşla güncelleme kurulumu.
+
+---
+
 ## 🛠️ Teknik Mimari ve Mühendislik Detayları
 
 AccessGrab, Google'ın modern Android geliştirme standartlarına (Modern Android Development - MAD) tam uyumlu olarak inşa edilmiştir:
@@ -83,11 +97,13 @@ Projeyi kendi bilgisayarınızda derlemek için:
 
 ---
 
-## 📥 Hazır APK İndirme
+## 📥 Hazır APK İndirme (Her Zaman En Güncel Sürüm)
 
-Uygulamayı doğrudan cihazınıza kurup denemek için:
+Uygulamayı doğrudan cihazınıza kurup denemek için kalıcı indirme bağlantıları:
 
-👉 **[AccessGrab v2.2.1 APK İndir](https://baverelci.com.tr/AccessGrab.apk)**
+- 👉 **[AccessGrab v2.2.4 Doğrudan APK İndir (Ana Sunucu)](https://baverelci.com.tr/AccessGrab.apk)**
+- 🌐 **[AccessGrab İndirme Sayfası](https://baverelci.com.tr/accessgrab/indir)**
+- 📦 **[GitHub Releases En Son Sürüm APK](https://github.com/bawer-elci/AccessGrab/releases/latest/download/AccessGrab.apk)**
 
 ---
 
