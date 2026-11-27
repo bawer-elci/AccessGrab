@@ -1,0 +1,3 @@
+• Direct Instagram Story, Highlight, and Reels MP4/MP3 download and in-app video preview support.
+• RAM Pre-Build and multi-channel CDN streaming engine for ultra-fast downloads.
+• Smart battery-saving background notification service and stability improvements.

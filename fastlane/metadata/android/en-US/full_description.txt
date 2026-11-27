@@ -1,0 +1,9 @@
+AccessGrab is a free, open-source (GPLv3), ad-free social media video & MP3 audio downloader and built-in media player designed from the ground up for blind and visually impaired users (100% TalkBack accessible) as well as anyone looking for a clean, fast media experience.
+
+Key Features:
+• Multi-Platform Support: Download MP4 videos or MP3 audio from YouTube (Videos, Shorts, Music, Playlists), Instagram (Stories, Highlights, Reels, Posts), TikTok (No Watermark HD), X / Twitter, and Facebook.
+• Text & Voice Search + Daily Trends: Search for songs and videos by typing or using voice search directly inside the app, or browse Daily Trending music.
+• In-App Video & Audio Player Popup: Preview search results before downloading or play offline files with 10s seek, playback speed control (1x - 2x), 200% Volume Booster (LoudnessEnhancer), auto-resume from last position, and background playback.
+• 30-Second Ringtone Clipper: Cut a 30-second clip from the current playback position and set it directly as your Ringtone, Alarm, or Notification sound.
+• Batch Playlist Downloader, Video Transcript / Subtitle Reader, and 30-Second WhatsApp Status Video Splitter.
+• Ultra High Contrast (Black/Yellow) & Large Text mode for low-vision users, plus full TalkBack Custom Actions and 2-finger double-tap MediaSession support.

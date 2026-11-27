@@ -1,0 +1,11 @@
+AccessGrab, özellikle görme engelli bireyler, ekran okuyucu (TalkBack) kullanıcıları ve sade, reklamsız bir deneyim arayan herkes için geliştirilmiş açık kaynaklı (GPLv3) bir sosyal medya video/MP3 indirici ve dahili medya oynatıcısıdır.
+
+Öne Çıkan Özellikler:
+• Çoklu Platform Desteği: YouTube (Video, Shorts, Müzik, Oynatma Listesi), Instagram (Hikayeler / Stories, Öne Çıkanlar, Reels, Gönderiler), TikTok (Filigransız HD), X / Twitter ve Facebook videolarını tek dokunuşla MP4 veya MP3 olarak indirme.
+• Kelimeyle ve Sesle Arama + Günün Trendleri: Uygulamadan çıkmadan şarkı/video arama, mikrofonla sesli arama ve Günün Trendleri listesi.
+• Görüntülü Video Oynatıcı Penceresi: Arama sonuçlarında ve Kütüphane'de 10 sn ileri/geri sarma, oynatma hızı (1x - 2x), %200 Ses Güçlendirici (LoudnessEnhancer), yarıda kalan videoya kaldığı saniyeden devam etme ve pencereden doğrudan indirme.
+• 30 Saniye Zil Sesi Kesici: Şarkının o an çaldığı saniyeden itibaren 30 saniyelik kesit alıp doğrudan telefon Zil Sesi, Alarm Sesi veya Bildirim Sesi yapabilme.
+• Oynatma Listesi Toplu İndirme ve Konuşma Metni / Altyazı Okuma.
+• WhatsApp Durumu İçin 30 Saniyelik Kayıpsız Video Bölücü.
+• Az Görenler İçin Ultra Yüksek Kontrast (Siyah/Sarı) ve Büyük Yazı Modu.
+• %100 TalkBack Özel Eylemler (Custom Actions) ve İki Parmakla Çift Dokunma (MediaSession) desteği.
