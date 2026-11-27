@@ -575,6 +575,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun selectSearchResultForQuality(item: SearchResultItem) {
+        viewModelScope.launch {
+            try {
+                AccessGrabApi.service.extractMedia(ExtractRequest(url = item.url))
+            } catch (_: Exception) {}
+        }
         _uiState.value = UiState.MediaReady(
             ExtractResponse(
                 success = true,

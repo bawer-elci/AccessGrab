@@ -10,9 +10,19 @@ data class ReleaseLog(
 object ChangeLogData {
     val releases = listOf(
         ReleaseLog(
-            version = "v2.2.3",
+            version = "v2.2.4",
             date = "27 Kasım 2026",
             isLatest = true,
+            highlights = listOf(
+                "Instagram Hikaye (Story), Öne Çıkanlar (Highlight) ve Reels Doğrudan İndirme Motoru: Oturum veya çerez gerektirmeden Instagram Hikayelerini (Stories), /share/ bağlantılarını ve Reels videolarını 0.5 saniyede çözümleyip doğrudan yüksek hızda MP4/MP3 indirme ve pencerede oynatma.",
+                "RAM Ön-Hazırlama (Pre-Build) & 8 Kanallı Ultra Hızlı İndirme: Siz videoyu incelerken veya oynatıcı penceresinde izlerken MP3 ses dosyasını sunucu RAM belleğinde (/dev/shm) arka planda önceden hazırlayarak 'İndir' düğmesine bastığınız anda beklemeden anında indirme.",
+                "Tüm Platformlarda (YouTube, Instagram, TikTok, X/Twitter, Facebook) Kalıcı Bağlantı Havuzu ve Yüksek Hızlı Akış."
+            )
+        ),
+        ReleaseLog(
+            version = "v2.2.3",
+            date = "27 Kasım 2026",
+            isLatest = false,
             highlights = listOf(
                 "Akıllı Pil Tasarruflu Arka Plan Bildirim Motoru: Pil muafiyeti korunurken ekran açıkken WakeLock kullanmayan (10 sn), ekran kilitliyken yalnızca 2.5 sn mikro uyandırma yapan (22 sn) ve internet kapalıyken uyuyan sıfır şarj tüketimli bildirim servisi.",
                 "Turbo İndirme & 4 Çekirdekli Paralel MP3 Dönüştürme Motoru: Sunucuda paylaşımlı RAM (/dev/shm) önbelleği, arama sonuçlarını arka planda önceden hazırlama (Pre-Warm) ve 4 çekirdekli paralel MP3 kodlama ile 3 kata kadar daha hızlı indirme.",
